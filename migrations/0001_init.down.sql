@@ -1,0 +1,8 @@
+BEGIN;
+
+DROP TABLE IF EXISTS turns;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS seminar_thesis_history;
+DROP TABLE IF EXISTS seminars;
+
+COMMIT;

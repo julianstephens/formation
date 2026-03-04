@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: seminar
+      POSTGRES_PASSWORD: seminar
+      POSTGRES_DB: seminar
+    ports:
+      - "5432:5432"
+    volumes:
+      - seminar_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seminar"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file: backend.env
+    environment:
+      DATABASE_URL: postgres://seminar:seminar@db:5432/seminar?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    env_file: web.env
+    volumes:
+      - ./web/src:/app/src
+    depends_on:
+      - api
+
+volumes:
+  seminar_db_data:
