@@ -9,13 +9,20 @@
  */
 
 import type {
+  Artifact,
+  CreateArtifactInput,
   CreateSeminarInput,
   CreateSessionInput,
+  CreateTutorialInput,
   Seminar,
   Session,
   SessionDetail,
+  Tutorial,
+  TutorialSession,
+  TutorialSessionDetail,
   Turn,
   UpdateSeminarInput,
+  UpdateTutorialInput,
 } from "./types";
 
 const BASE_URL =
@@ -128,6 +135,50 @@ export function createApiClient(getToken: () => Promise<string>) {
 
     exportSessionUrl: (sessionId: string, format: "json" | "md" = "json") =>
       `${BASE_URL}/sessions/${sessionId}/export?format=${format}`,
+
+    // ── Tutorials ─────────────────────────────────────────────────────────────
+    listTutorials: () => get<Tutorial[]>("/tutorials"),
+
+    getTutorial: (id: string) => get<Tutorial>(`/tutorials/${id}`),
+
+    createTutorial: (input: CreateTutorialInput) =>
+      post<Tutorial>("/tutorials", input),
+
+    updateTutorial: (id: string, input: UpdateTutorialInput) =>
+      patch<Tutorial>(`/tutorials/${id}`, input),
+
+    deleteTutorial: (id: string) => del<void>(`/tutorials/${id}`),
+
+    // ── Tutorial Sessions ─────────────────────────────────────────────────────
+    createTutorialSession: (tutorialId: string) =>
+      post<TutorialSession>(`/tutorials/${tutorialId}/sessions`),
+
+    listTutorialSessions: (tutorialId: string) =>
+      get<TutorialSession[]>(`/tutorials/${tutorialId}/sessions`),
+
+    getTutorialSession: (sessionId: string) =>
+      get<TutorialSessionDetail>(`/tutorial-sessions/${sessionId}`),
+
+    completeTutorialSession: (sessionId: string, notes?: string) =>
+      post<TutorialSession>(`/tutorial-sessions/${sessionId}/complete`, {
+        notes: notes ?? "",
+      }),
+
+    abandonTutorialSession: (sessionId: string) =>
+      post<TutorialSession>(`/tutorial-sessions/${sessionId}/abandon`),
+
+    deleteTutorialSession: (sessionId: string) =>
+      del<void>(`/tutorial-sessions/${sessionId}`),
+
+    // ── Artifacts ─────────────────────────────────────────────────────────────
+    listArtifacts: (sessionId: string) =>
+      get<Artifact[]>(`/tutorial-sessions/${sessionId}/artifacts`),
+
+    createArtifact: (sessionId: string, input: CreateArtifactInput) =>
+      post<Artifact>(`/tutorial-sessions/${sessionId}/artifacts`, input),
+
+    deleteArtifact: (sessionId: string, artifactId: string) =>
+      del<void>(`/tutorial-sessions/${sessionId}/artifacts/${artifactId}`),
   };
 }
 

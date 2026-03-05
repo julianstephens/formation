@@ -34,18 +34,27 @@ type ExportRouteRegistrar interface {
 	RegisterUnderSessions(rg *gin.RouterGroup)
 }
 
+// TutorialRouteRegistrar extends RouteRegistrar with a second mount-point used
+// to register the session sub-routes nested under /tutorials/:id.
+type TutorialRouteRegistrar interface {
+	RouteRegistrar
+	RegisterSessionsUnderTutorial(rg *gin.RouterGroup)
+}
+
 // RouterDeps holds all handler dependencies injected into the router.
 // Adding a new handler in a later phase only requires extending this struct
 // and wiring the new group below.
 type RouterDeps struct {
-	Config   *config.Config
-	JWKS     *auth.JWKS
-	Logger   *slog.Logger // optional; falls back to slog.Default()
-	Seminars RouteRegistrar
-	Sessions SessionRouteRegistrar
-	Events   RouteRegistrar
-	Turns    RouteRegistrar
-	Exports  ExportRouteRegistrar
+	Config          *config.Config
+	JWKS            *auth.JWKS
+	Logger          *slog.Logger // optional; falls back to slog.Default()
+	Seminars        RouteRegistrar
+	Sessions        SessionRouteRegistrar
+	Events          RouteRegistrar
+	Turns           RouteRegistrar
+	Exports         ExportRouteRegistrar
+	Tutorials       TutorialRouteRegistrar
+	TutorialSessions RouteRegistrar
 }
 
 // NewRouter builds and returns the configured Gin engine.
@@ -121,6 +130,35 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 		deps.Events.Register(sessionsGroup)
 	} else {
 		sessionsGroup.GET("/:id/events", placeholder("SSE stream"))
+	}
+
+	// ── Tutorials ─────────────────────────────────────────────────────────────
+	tutorialsGroup := v1.Group("/tutorials")
+	if deps.Tutorials != nil {
+		deps.Tutorials.Register(tutorialsGroup)
+		deps.Tutorials.RegisterSessionsUnderTutorial(tutorialsGroup)
+	} else {
+		tutorialsGroup.GET("", placeholder("list tutorials"))
+		tutorialsGroup.POST("", placeholder("create tutorial"))
+		tutorialsGroup.GET("/:id", placeholder("get tutorial"))
+		tutorialsGroup.PATCH("/:id", placeholder("update tutorial"))
+		tutorialsGroup.DELETE("/:id", placeholder("delete tutorial"))
+		tutorialsGroup.GET("/:id/sessions", placeholder("list tutorial sessions"))
+		tutorialsGroup.POST("/:id/sessions", placeholder("create tutorial session"))
+	}
+
+	// Tutorial Sessions (top-level operations)
+	tutorialSessionsGroup := v1.Group("/tutorial-sessions")
+	if deps.TutorialSessions != nil {
+		deps.TutorialSessions.Register(tutorialSessionsGroup)
+	} else {
+		tutorialSessionsGroup.GET("/:id", placeholder("get tutorial session"))
+		tutorialSessionsGroup.DELETE("/:id", placeholder("delete tutorial session"))
+		tutorialSessionsGroup.POST("/:id/complete", placeholder("complete tutorial session"))
+		tutorialSessionsGroup.POST("/:id/abandon", placeholder("abandon tutorial session"))
+		tutorialSessionsGroup.GET("/:id/artifacts", placeholder("list artifacts"))
+		tutorialSessionsGroup.POST("/:id/artifacts", placeholder("create artifact"))
+		tutorialSessionsGroup.DELETE("/:id/artifacts/:artifactId", placeholder("delete artifact"))
 	}
 
 	return r

@@ -109,16 +109,26 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 	exportSvc := service.NewExportService(seminarRepo, sessionRepo)
 	exportHandler := handlers.NewExportHandler(exportSvc)
 
+	// 11. Wire tutorial repositories, services, and handlers.
+	tutorialRepo := repo.NewTutorialRepo(base)
+	tutorialSvc := service.NewTutorialService(tutorialRepo)
+	tutorialSessionSvc := service.NewTutorialSessionService(tutorialRepo)
+	artifactSvc := service.NewArtifactService(tutorialRepo)
+	tutorialHandler := handlers.NewTutorialHandler(tutorialSvc, tutorialSessionSvc)
+	tutorialSessionHandler := handlers.NewTutorialSessionHandler(tutorialSessionSvc, artifactSvc)
+
 	// 9. Build HTTP server.
 	router := apphttp.NewRouter(apphttp.RouterDeps{
-		Config:   cfg,
-		JWKS:     jwks,
-		Logger:   logger,
-		Seminars: seminarHandler,
-		Sessions: sessionHandler,
-		Events:   eventsHandler,
-		Turns:    turnHandler,
-		Exports:  exportHandler,
+		Config:           cfg,
+		JWKS:             jwks,
+		Logger:           logger,
+		Seminars:         seminarHandler,
+		Sessions:         sessionHandler,
+		Events:           eventsHandler,
+		Turns:            turnHandler,
+		Exports:          exportHandler,
+		Tutorials:        tutorialHandler,
+		TutorialSessions: tutorialSessionHandler,
 	})
 
 	srv := &http.Server{

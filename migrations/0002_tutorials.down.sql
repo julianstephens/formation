@@ -1,0 +1,7 @@
+BEGIN;
+
+DROP TABLE IF EXISTS artifacts;
+DROP TABLE IF EXISTS tutorial_sessions;
+DROP TABLE IF EXISTS tutorials;
+
+COMMIT;
