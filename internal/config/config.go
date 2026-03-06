@@ -26,6 +26,13 @@ type Config struct {
 
 	// SSE
 	TimerTickSeconds int
+
+	// S3 (Garage / AWS compatible)
+	S3EndpointURL string
+	S3AccessKeyID string
+	S3SecretKey   string
+	S3BucketName  string
+	S3Region      string
 }
 
 // Load reads configuration from environment variables, returning an error
@@ -40,6 +47,11 @@ func Load() (*Config, error) {
 		OpenAIAPIKey:     os.Getenv("OPENAI_API_KEY"),
 		OpenAIModel:      getEnv("OPENAI_MODEL", "gpt-4o"),
 		TimerTickSeconds: getEnv("TIMER_TICK_SECONDS", 2),
+		S3EndpointURL:    os.Getenv("S3_ENDPOINT_URL"),
+		S3AccessKeyID:    os.Getenv("S3_ACCESS_KEY_ID"),
+		S3SecretKey:      os.Getenv("S3_SECRET_KEY"),
+		S3BucketName:     os.Getenv("S3_BUCKET_NAME"),
+		S3Region:         getEnv("S3_REGION", "us-east-1"),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -51,10 +63,14 @@ func Load() (*Config, error) {
 
 func (c *Config) validate() error {
 	required := map[string]string{
-		"DATABASE_URL":   c.DatabaseURL,
-		"AUTH0_DOMAIN":   c.Auth0Domain,
-		"AUTH0_AUDIENCE": c.Auth0Audience,
-		"OPENAI_API_KEY": c.OpenAIAPIKey,
+		"DATABASE_URL":    c.DatabaseURL,
+		"AUTH0_DOMAIN":    c.Auth0Domain,
+		"AUTH0_AUDIENCE":  c.Auth0Audience,
+		"OPENAI_API_KEY":  c.OpenAIAPIKey,
+		"S3_ENDPOINT_URL": c.S3EndpointURL,
+		"S3_ACCESS_KEY_ID": c.S3AccessKeyID,
+		"S3_SECRET_KEY":   c.S3SecretKey,
+		"S3_BUCKET_NAME":  c.S3BucketName,
 	}
 
 	var missing []string

@@ -3,10 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/julianstephens/formation/internal/export"
 	seminarRepo "github.com/julianstephens/formation/internal/modules/seminar/repo"
 	tutorialRepo "github.com/julianstephens/formation/internal/modules/tutorial/repo"
+	"github.com/julianstephens/formation/internal/observability"
+	"github.com/julianstephens/formation/internal/storage"
 )
 
 // ExportService assembles full denormalized export payloads for seminars and
@@ -16,6 +19,8 @@ type ExportService struct {
 	seminars  *seminarRepo.SeminarRepo
 	sessions  *seminarRepo.SessionRepo
 	tutorials *tutorialRepo.TutorialRepo
+	s3        *storage.S3Client
+	log       *slog.Logger
 }
 
 // NewExportService constructs an ExportService backed by the given repositories.
@@ -25,6 +30,14 @@ func NewExportService(
 	tutorials *tutorialRepo.TutorialRepo,
 ) *ExportService {
 	return &ExportService{seminars: seminars, sessions: sessions, tutorials: tutorials}
+}
+
+// WithS3 attaches an S3 client and logger to the service so that
+// UploadAndPresign* methods are available.
+func (s *ExportService) WithS3(client *storage.S3Client, logger *slog.Logger) *ExportService {
+	s.s3 = client
+	s.log = logger
+	return s
 }
 
 // ExportSeminar loads the seminar, its thesis history, and every session with
@@ -141,4 +154,188 @@ func (s *ExportService) ExportTutorialSession(
 		Session: *sess,
 		Turns:   turns,
 	}, nil
+}
+
+// ── S3 upload + presign helpers ────────────────────────────────────────────────
+
+// UploadAndPresignSeminar assembles the seminar export, renders it to the
+// requested format, uploads it to S3, and returns a presigned download URL.
+// Returns an error if the S3 upload fails.
+func (s *ExportService) UploadAndPresignSeminar(
+	ctx context.Context,
+	seminarID, ownerSub, format string,
+) (string, error) {
+	logger := observability.LoggerFromContext(ctx)
+
+	result, err := s.ExportSeminar(ctx, seminarID, ownerSub)
+	if err != nil {
+		return "", err
+	}
+
+	content, contentType, ext, err := renderExport(result, format,
+		export.RenderSeminarMarkdown, export.RenderSeminarJSON)
+	if err != nil {
+		return "", err
+	}
+
+	key := fmt.Sprintf("exports/seminars/%s.%s", seminarID, ext)
+	if err := s.s3.Upload(ctx, key, content, contentType); err != nil {
+		logger.Error("s3 upload failed", slog.String("key", key), slog.String("error", err.Error()))
+		return "", fmt.Errorf("upload seminar export: %w", err)
+	}
+
+	url, err := s.s3.PresignURL(ctx, key)
+	if err != nil {
+		return "", fmt.Errorf("presign seminar export: %w", err)
+	}
+
+	logger.Info("seminar export uploaded",
+		slog.String("seminar_id", seminarID),
+		slog.String("format", format),
+		slog.String("key", key),
+	)
+	return url, nil
+}
+
+// UploadAndPresignSession assembles the session export, renders it to the
+// requested format, uploads it to S3, and returns a presigned download URL.
+// Returns an error if the S3 upload fails.
+func (s *ExportService) UploadAndPresignSession(
+	ctx context.Context,
+	sessionID, ownerSub, format string,
+) (string, error) {
+	logger := observability.LoggerFromContext(ctx)
+
+	result, err := s.ExportSession(ctx, sessionID, ownerSub)
+	if err != nil {
+		return "", err
+	}
+
+	content, contentType, ext, err := renderExport(result, format,
+		export.RenderSessionMarkdown, export.RenderSessionJSON)
+	if err != nil {
+		return "", err
+	}
+
+	key := fmt.Sprintf("exports/sessions/%s.%s", sessionID, ext)
+	if err := s.s3.Upload(ctx, key, content, contentType); err != nil {
+		logger.Error("s3 upload failed", slog.String("key", key), slog.String("error", err.Error()))
+		return "", fmt.Errorf("upload session export: %w", err)
+	}
+
+	url, err := s.s3.PresignURL(ctx, key)
+	if err != nil {
+		return "", fmt.Errorf("presign session export: %w", err)
+	}
+
+	logger.Info("session export uploaded",
+		slog.String("session_id", sessionID),
+		slog.String("format", format),
+		slog.String("key", key),
+	)
+	return url, nil
+}
+
+// UploadAndPresignTutorial assembles the tutorial export, renders it to the
+// requested format, uploads it to S3, and returns a presigned download URL.
+// Returns an error if the S3 upload fails.
+func (s *ExportService) UploadAndPresignTutorial(
+	ctx context.Context,
+	tutorialID, ownerSub, format string,
+) (string, error) {
+	logger := observability.LoggerFromContext(ctx)
+
+	result, err := s.ExportTutorial(ctx, tutorialID, ownerSub)
+	if err != nil {
+		return "", err
+	}
+
+	content, contentType, ext, err := renderExport(result, format,
+		export.RenderTutorialMarkdown, export.RenderTutorialJSON)
+	if err != nil {
+		return "", err
+	}
+
+	key := fmt.Sprintf("exports/tutorials/%s.%s", tutorialID, ext)
+	if err := s.s3.Upload(ctx, key, content, contentType); err != nil {
+		logger.Error("s3 upload failed", slog.String("key", key), slog.String("error", err.Error()))
+		return "", fmt.Errorf("upload tutorial export: %w", err)
+	}
+
+	url, err := s.s3.PresignURL(ctx, key)
+	if err != nil {
+		return "", fmt.Errorf("presign tutorial export: %w", err)
+	}
+
+	logger.Info("tutorial export uploaded",
+		slog.String("tutorial_id", tutorialID),
+		slog.String("format", format),
+		slog.String("key", key),
+	)
+	return url, nil
+}
+
+// UploadAndPresignTutorialSession assembles the tutorial session export,
+// renders it to the requested format, uploads it to S3, and returns a
+// presigned download URL. Returns an error if the S3 upload fails.
+func (s *ExportService) UploadAndPresignTutorialSession(
+	ctx context.Context,
+	sessionID, ownerSub, format string,
+) (string, error) {
+	logger := observability.LoggerFromContext(ctx)
+
+	result, err := s.ExportTutorialSession(ctx, sessionID, ownerSub)
+	if err != nil {
+		return "", err
+	}
+
+	content, contentType, ext, err := renderExport(result, format,
+		export.RenderTutorialSessionMarkdown, export.RenderTutorialSessionJSON)
+	if err != nil {
+		return "", err
+	}
+
+	key := fmt.Sprintf("exports/tutorial-sessions/%s.%s", sessionID, ext)
+	if err := s.s3.Upload(ctx, key, content, contentType); err != nil {
+		logger.Error("s3 upload failed", slog.String("key", key), slog.String("error", err.Error()))
+		return "", fmt.Errorf("upload tutorial session export: %w", err)
+	}
+
+	url, err := s.s3.PresignURL(ctx, key)
+	if err != nil {
+		return "", fmt.Errorf("presign tutorial session export: %w", err)
+	}
+
+	logger.Info("tutorial session export uploaded",
+		slog.String("session_id", sessionID),
+		slog.String("format", format),
+		slog.String("key", key),
+	)
+	return url, nil
+}
+
+// renderExport renders the export payload to bytes using the appropriate
+// renderer for the given format ("md" or "json").
+// T is the export payload type (e.g. *export.SeminarExport).
+func renderExport[T any](
+	payload T,
+	format string,
+	renderMD func(T) []byte,
+	renderJSON func(T) ([]byte, error),
+) (content []byte, contentType, ext string, err error) {
+	switch format {
+	case "md":
+		return renderMD(payload), "text/markdown; charset=utf-8", "md", nil
+	case "json", "":
+		content, err = renderJSON(payload)
+		if err != nil {
+			return nil, "", "", fmt.Errorf("render JSON export: %w", err)
+		}
+		return content, "application/json; charset=utf-8", "json", nil
+	default:
+		return nil, "", "", &ValidationError{
+			Field:   "format",
+			Message: fmt.Sprintf("unsupported export format %q: must be \"json\" or \"md\"", format),
+		}
+	}
 }
