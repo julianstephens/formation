@@ -11,6 +11,10 @@ import (
 	"syscall"
 	"time"
 
+	// Seminar module
+	// Tutorial module
+	// Shared infrastructure
+
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/julianstephens/formation/internal/agent"
@@ -20,8 +24,14 @@ import (
 	"github.com/julianstephens/formation/internal/db"
 	apphttp "github.com/julianstephens/formation/internal/http"
 	"github.com/julianstephens/formation/internal/http/handlers"
+	seminarHandlers "github.com/julianstephens/formation/internal/modules/seminar/handlers"
+	seminarRepo "github.com/julianstephens/formation/internal/modules/seminar/repo"
+	seminarService "github.com/julianstephens/formation/internal/modules/seminar/service"
+	tutorialHandlers "github.com/julianstephens/formation/internal/modules/tutorial/handlers"
+	tutorialRepo "github.com/julianstephens/formation/internal/modules/tutorial/repo"
+	tutorialService "github.com/julianstephens/formation/internal/modules/tutorial/service"
 	"github.com/julianstephens/formation/internal/observability"
-	"github.com/julianstephens/formation/internal/repo"
+	sharedRepo "github.com/julianstephens/formation/internal/repo"
 	"github.com/julianstephens/formation/internal/scheduler"
 	"github.com/julianstephens/formation/internal/service"
 	"github.com/julianstephens/formation/internal/sse"
@@ -68,17 +78,19 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 	logger.Info("jwks ready")
 
 	// 4. Wire repositories, services, and handlers.
-	base := repo.Base{Pool: pool}
-	seminarRepo := repo.NewSeminarRepo(base)
-	seminarSvc := service.NewSeminarService(seminarRepo)
-	seminarHandler := handlers.NewSeminarHandler(seminarSvc)
+	base := sharedRepo.Base{Pool: pool}
 
-	sessionRepo := repo.NewSessionRepo(base)
-	sessionSvc := service.NewSessionService(sessionRepo, seminarRepo)
-	sessionHandler := handlers.NewSessionHandler(sessionSvc)
+	// Seminar module wiring
+	semRepo := seminarRepo.NewSeminarRepo(base)
+	semSvc := seminarService.NewSeminarService(semRepo)
+	seminarHandler := seminarHandlers.NewSeminarHandler(semSvc)
+
+	sessRepo := seminarRepo.NewSessionRepo(base)
+	sessSvc := seminarService.NewSessionService(sessRepo, semRepo)
+	sessionHandler := seminarHandlers.NewSessionHandler(sessSvc)
 
 	// 5. Start the phase scheduler and recover any in-progress sessions.
-	sched := scheduler.New(sessionRepo, logger)
+	sched := scheduler.New(sessRepo, logger)
 	if err := sched.RecoverInProgress(ctx); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("scheduler recovery: %w", err)
@@ -108,31 +120,35 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 
 	// 8. Create the OpenAI provider and turn service.
 	openaiProvider := providers.New(cfg.OpenAIAPIKey, cfg.OpenAIModel)
-	turnSvc := service.NewTurnService(sessionRepo, seminarRepo, assembler, hub, openaiProvider)
-	turnHandler := handlers.NewTurnHandler(turnSvc)
+	turnSvc := seminarService.NewTurnService(sessRepo, semRepo, assembler, hub, openaiProvider)
+	turnHandler := seminarHandlers.NewTurnHandler(turnSvc)
 
-	eventsHandler := handlers.NewEventsHandler(hub, sessionSvc)
+	eventsHandler := seminarHandlers.NewEventsHandler(hub, sessSvc)
 
 	// 11. Wire tutorial repositories, services, and handlers.
-	tutorialRepo := repo.NewTutorialRepo(base)
-	diagnosticLedgerSvc := service.NewDiagnosticLedgerService(tutorialRepo)
-	tutorialSvc := service.NewTutorialService(tutorialRepo)
-	tutorialSessionSvc := service.NewTutorialSessionService(tutorialRepo)
-	artifactSvc := service.NewArtifactService(tutorialRepo)
-	tutorialTurnSvc := service.NewTutorialTurnService(
-		tutorialRepo,
+	tutRepo := tutorialRepo.NewTutorialRepo(base)
+	diagnosticLedgerSvc := tutorialService.NewDiagnosticLedgerService(tutRepo)
+	tutorialSvc := tutorialService.NewTutorialService(tutRepo)
+	tutorialSessionSvc := tutorialService.NewTutorialSessionService(tutRepo)
+	artifactSvc := tutorialService.NewArtifactService(tutRepo)
+	tutorialTurnSvc := tutorialService.NewTutorialTurnService(
+		tutRepo,
 		tutorialAssembler,
 		hub,
 		openaiProvider,
 		diagnosticLedgerSvc,
 	)
-	tutorialHandler := handlers.NewTutorialHandler(tutorialSvc, tutorialSessionSvc)
-	tutorialSessionHandler := handlers.NewTutorialSessionHandler(tutorialSessionSvc, artifactSvc, tutorialTurnSvc)
-	tutorialSessionEventsHandler := handlers.NewTutorialSessionEventsHandler(hub, tutorialSessionSvc)
-	tutorialDiagnosticsHandler := handlers.NewTutorialDiagnosticsHandler(diagnosticLedgerSvc, tutorialRepo)
+	tutorialHandler := tutorialHandlers.NewTutorialHandler(tutorialSvc, tutorialSessionSvc)
+	tutorialSessionHandler := tutorialHandlers.NewTutorialSessionHandler(
+		tutorialSessionSvc,
+		artifactSvc,
+		tutorialTurnSvc,
+	)
+	tutorialSessionEventsHandler := tutorialHandlers.NewTutorialSessionEventsHandler(hub, tutorialSessionSvc)
+	tutorialDiagnosticsHandler := tutorialHandlers.NewTutorialDiagnosticsHandler(diagnosticLedgerSvc, tutRepo)
 
-	// 10. Create the export service and handler.
-	exportSvc := service.NewExportService(seminarRepo, sessionRepo, tutorialRepo)
+	// 10. Create the export service and handler using module repos.
+	exportSvc := service.NewExportService(semRepo, sessRepo, tutRepo)
 	exportHandler := handlers.NewExportHandler(exportSvc)
 
 	// 9. Build HTTP server.

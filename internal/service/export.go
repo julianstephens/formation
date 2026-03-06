@@ -5,23 +5,24 @@ import (
 	"fmt"
 
 	"github.com/julianstephens/formation/internal/export"
-	"github.com/julianstephens/formation/internal/repo"
+	seminarRepo "github.com/julianstephens/formation/internal/modules/seminar/repo"
+	tutorialRepo "github.com/julianstephens/formation/internal/modules/tutorial/repo"
 )
 
 // ExportService assembles full denormalized export payloads for seminars and
 // sessions. It does not render them; rendering is handled by the export
 // package renderers so that the service layer stays format-agnostic.
 type ExportService struct {
-	seminars  *repo.SeminarRepo
-	sessions  *repo.SessionRepo
-	tutorials *repo.TutorialRepo
+	seminars  *seminarRepo.SeminarRepo
+	sessions  *seminarRepo.SessionRepo
+	tutorials *tutorialRepo.TutorialRepo
 }
 
 // NewExportService constructs an ExportService backed by the given repositories.
 func NewExportService(
-	seminars *repo.SeminarRepo,
-	sessions *repo.SessionRepo,
-	tutorials *repo.TutorialRepo,
+	seminars *seminarRepo.SeminarRepo,
+	sessions *seminarRepo.SessionRepo,
+	tutorials *tutorialRepo.TutorialRepo,
 ) *ExportService {
 	return &ExportService{seminars: seminars, sessions: sessions, tutorials: tutorials}
 }
@@ -35,7 +36,7 @@ func (s *ExportService) ExportSeminar(
 ) (*export.SeminarExport, error) {
 	sem, err := s.seminars.GetByID(ctx, seminarID, ownerSub)
 	if err != nil {
-		return nil, wrapNotFound(err, "seminar", seminarID)
+		return nil, WrapNotFound(err, "seminar", seminarID)
 	}
 
 	sessions, err := s.sessions.ListBySeminarID(ctx, seminarID, ownerSub)
@@ -70,7 +71,7 @@ func (s *ExportService) ExportSession(
 ) (*export.SessionExport, error) {
 	sess, err := s.sessions.GetByID(ctx, sessionID, ownerSub)
 	if err != nil {
-		return nil, wrapNotFound(err, "session", sessionID)
+		return nil, WrapNotFound(err, "session", sessionID)
 	}
 
 	turns, err := s.sessions.ListTurns(ctx, sessionID, ownerSub)
@@ -93,7 +94,7 @@ func (s *ExportService) ExportTutorial(
 ) (*export.TutorialExport, error) {
 	tut, err := s.tutorials.GetTutorialByID(ctx, tutorialID, ownerSub)
 	if err != nil {
-		return nil, wrapNotFound(err, "tutorial", tutorialID)
+		return nil, WrapNotFound(err, "tutorial", tutorialID)
 	}
 
 	sessions, err := s.tutorials.ListSessionsByTutorialID(ctx, tutorialID, ownerSub)
@@ -128,7 +129,7 @@ func (s *ExportService) ExportTutorialSession(
 ) (*export.TutorialSessionExport, error) {
 	sess, err := s.tutorials.GetSessionByID(ctx, sessionID, ownerSub)
 	if err != nil {
-		return nil, wrapNotFound(err, "tutorial_session", sessionID)
+		return nil, WrapNotFound(err, "tutorial_session", sessionID)
 	}
 
 	turns, err := s.tutorials.ListTutorialTurns(ctx, sessionID, ownerSub)

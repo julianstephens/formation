@@ -211,5 +211,5 @@ func (h *ExportHandler) ExportTutorialSession(c *gin.Context) {
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 func writeExportError(c *gin.Context, err error) {
-	handleServiceError(c, err)
+	apphttp.HandleServiceError(c, err)
 }

@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/julianstephens/formation/internal/domain"
-	"github.com/julianstephens/formation/internal/repo"
-	"github.com/julianstephens/formation/internal/service"
+	"github.com/julianstephens/formation/internal/modules/seminar/repo"
+	"github.com/julianstephens/formation/internal/modules/seminar/service"
 )
 
 // Scheduler manages per-session phase-advance timers.

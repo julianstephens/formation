@@ -3,7 +3,7 @@
 # Variables
 BINARY_NAME=formation
 BUILD_DIR=bin
-CMD_DIR=./cmd/formation
+CMD_DIR=./cmd/api
 VERSION?=0.1.0
 LDFLAGS=-ldflags "-X main.version=$(VERSION)"
 
