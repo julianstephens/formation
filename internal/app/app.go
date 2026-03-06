@@ -98,6 +98,14 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 	}
 	logger.Info("prompt assembler ready")
 
+	// 7b. Build the tutorial prompt assembler.
+	tutorialAssembler, err := agent.NewTutorialAssembler()
+	if err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("init tutorial prompt assembler: %w", err)
+	}
+	logger.Info("tutorial prompt assembler ready")
+
 	// 8. Create the OpenAI provider and turn service.
 	openaiProvider := providers.New(cfg.OpenAIAPIKey, cfg.OpenAIModel)
 	turnSvc := service.NewTurnService(sessionRepo, seminarRepo, assembler, hub, openaiProvider)
@@ -114,21 +122,24 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 	tutorialSvc := service.NewTutorialService(tutorialRepo)
 	tutorialSessionSvc := service.NewTutorialSessionService(tutorialRepo)
 	artifactSvc := service.NewArtifactService(tutorialRepo)
+	tutorialTurnSvc := service.NewTutorialTurnService(tutorialRepo, tutorialAssembler, hub, openaiProvider)
 	tutorialHandler := handlers.NewTutorialHandler(tutorialSvc, tutorialSessionSvc)
-	tutorialSessionHandler := handlers.NewTutorialSessionHandler(tutorialSessionSvc, artifactSvc)
+	tutorialSessionHandler := handlers.NewTutorialSessionHandler(tutorialSessionSvc, artifactSvc, tutorialTurnSvc)
+	tutorialSessionEventsHandler := handlers.NewTutorialSessionEventsHandler(hub, tutorialSessionSvc)
 
 	// 9. Build HTTP server.
 	router := apphttp.NewRouter(apphttp.RouterDeps{
-		Config:           cfg,
-		JWKS:             jwks,
-		Logger:           logger,
-		Seminars:         seminarHandler,
-		Sessions:         sessionHandler,
-		Events:           eventsHandler,
-		Turns:            turnHandler,
-		Exports:          exportHandler,
-		Tutorials:        tutorialHandler,
-		TutorialSessions: tutorialSessionHandler,
+		Config:                cfg,
+		JWKS:                  jwks,
+		Logger:                logger,
+		Seminars:              seminarHandler,
+		Sessions:              sessionHandler,
+		Events:                eventsHandler,
+		Turns:                 turnHandler,
+		Exports:               exportHandler,
+		Tutorials:             tutorialHandler,
+		TutorialSessions:      tutorialSessionHandler,
+		TutorialSessionEvents: tutorialSessionEventsHandler,
 	})
 
 	srv := &http.Server{

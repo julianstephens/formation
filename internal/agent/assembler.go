@@ -10,10 +10,11 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml"
+
 	"github.com/julianstephens/formation/internal/domain"
 )
 
-//go:embed prompts/canonical.yml prompts/rewrite.yml
+//go:embed prompts/seminar/canonical.yml prompts/seminar/rewrite.yml prompts/tutorial/canonical.yml
 var promptFS embed.FS
 
 // ── YAML schemas ──────────────────────────────────────────────────────────────
@@ -34,6 +35,18 @@ type rewritePrompt struct {
 	Name                string `yaml:"name"`
 	RewriteSystem       string `yaml:"rewrite_system"`
 	RewriteUserTemplate string `yaml:"rewrite_user_template"`
+}
+
+type tutorialCanonicalPrompt struct {
+	Version               string            `yaml:"version"`
+	Name                  string            `yaml:"name"`
+	Description           string            `yaml:"description"`
+	CoreSystem            string            `yaml:"core_system"`
+	SessionKindAddenda    map[string]string `yaml:"session_kind_addenda"`
+	TaskAddenda           map[string]string `yaml:"task_addenda"`
+	RoseHillContext       string            `yaml:"rose_hill_context"`
+	ExampleExchange       string            `yaml:"example_exchange"`
+	SessionHeaderTemplate string            `yaml:"session_header_template"`
 }
 
 // ── Message ───────────────────────────────────────────────────────────────────
@@ -68,7 +81,7 @@ func NewAssembler() (*Assembler, error) {
 }
 
 func loadCanonical() (*canonicalPrompt, error) {
-	data, err := promptFS.ReadFile("prompts/canonical.yml")
+	data, err := promptFS.ReadFile("prompts/seminar/canonical.yml")
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +93,7 @@ func loadCanonical() (*canonicalPrompt, error) {
 }
 
 func loadRewrite() (*rewritePrompt, error) {
-	data, err := promptFS.ReadFile("prompts/rewrite.yml")
+	data, err := promptFS.ReadFile("prompts/seminar/rewrite.yml")
 	if err != nil {
 		return nil, err
 	}
@@ -201,4 +214,116 @@ func speakerToRole(speaker string) string {
 	default:
 		return "user"
 	}
+}
+
+// ── TutorialAssembler ─────────────────────────────────────────────────────────
+
+// TutorialAssembler parses and caches the tutorial canonical prompt file.
+type TutorialAssembler struct {
+	canonical *tutorialCanonicalPrompt
+}
+
+// NewTutorialAssembler parses canonical.yml from the tutorial prompts directory.
+func NewTutorialAssembler() (*TutorialAssembler, error) {
+	canon, err := loadTutorialCanonical()
+	if err != nil {
+		return nil, fmt.Errorf("load tutorial canonical prompt: %w", err)
+	}
+	return &TutorialAssembler{canonical: canon}, nil
+}
+
+func loadTutorialCanonical() (*tutorialCanonicalPrompt, error) {
+	data, err := promptFS.ReadFile("prompts/tutorial/canonical.yml")
+	if err != nil {
+		return nil, err
+	}
+	var p tutorialCanonicalPrompt
+	if err := yaml.Unmarshal(data, &p); err != nil {
+		return nil, fmt.Errorf("parse tutorial canonical.yml: %w", err)
+	}
+	return &p, nil
+}
+
+// ── TutorialAssembleParams ────────────────────────────────────────────────────
+
+// TutorialAssembleParams carries the runtime values for tutorial prompts.
+type TutorialAssembleParams struct {
+	TutorialTitle      string
+	SessionKind        string // e.g. "diagnostic", "extended"
+	TaskMode           string // e.g. "review_only", "problemset_generation"
+	WeekOf             string
+	Artifacts          string
+	PriorDiagnostics   string
+	PreviousProblemSet string
+	ProblemSetResponse string
+	Turns              []domain.TutorialTurn
+}
+
+// AssembleTutorial composes the ordered message slice for a tutorial session.
+//
+// Composition order:
+//  1. core_system + rose_hill_context + example_exchange + session_kind_addendum + task_addendum (single system message)
+//  2. session_header (runtime-interpolated system message)
+//  3. conversation turns in chronological order
+func (a *TutorialAssembler) AssembleTutorial(p TutorialAssembleParams) ([]Message, error) {
+	// Get session kind addendum (optional - defaults to empty).
+	sessionKindText := a.canonical.SessionKindAddenda[p.SessionKind]
+
+	// Get task addendum (optional - defaults to empty).
+	taskText := a.canonical.TaskAddenda[p.TaskMode]
+
+	// Combine core, rose hill context, example, session kind, and task into a single system message.
+	var sb strings.Builder
+	sb.WriteString(strings.TrimSpace(a.canonical.CoreSystem))
+
+	// Add Rose Hill context
+	if a.canonical.RoseHillContext != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(strings.TrimSpace(a.canonical.RoseHillContext))
+	}
+
+	// Add example exchange
+	if a.canonical.ExampleExchange != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(strings.TrimSpace(a.canonical.ExampleExchange))
+	}
+
+	if sessionKindText != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(strings.TrimSpace(sessionKindText))
+	}
+	if taskText != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(strings.TrimSpace(taskText))
+	}
+
+	messages := []Message{
+		{Role: "system", Content: sb.String()},
+		{Role: "system", Content: a.interpolateTutorialHeader(p)},
+	}
+
+	// Append conversation history.
+	for _, t := range p.Turns {
+		messages = append(messages, Message{
+			Role:    speakerToRole(t.Speaker),
+			Content: t.Text,
+		})
+	}
+
+	return messages, nil
+}
+
+// ── tutorial helpers ──────────────────────────────────────────────────────────
+
+func (a *TutorialAssembler) interpolateTutorialHeader(p TutorialAssembleParams) string {
+	return strings.TrimSpace(strings.NewReplacer(
+		"{{tutorial_title}}", p.TutorialTitle,
+		"{{session_kind}}", p.SessionKind,
+		"{{task_mode}}", p.TaskMode,
+		"{{week_of}}", p.WeekOf,
+		"{{artifacts}}", p.Artifacts,
+		"{{prior_diagnostics}}", p.PriorDiagnostics,
+		"{{previous_problem_set}}", p.PreviousProblemSet,
+		"{{problem_set_response}}", p.ProblemSetResponse,
+	).Replace(a.canonical.SessionHeaderTemplate))
 }

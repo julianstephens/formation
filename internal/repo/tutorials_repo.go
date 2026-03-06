@@ -24,7 +24,11 @@ func NewTutorialRepo(b Base) *TutorialRepo {
 // ── Tutorials ─────────────────────────────────────────────────────────────────
 
 // CreateTutorial inserts a new tutorial and returns the fully-populated record.
-func (r *TutorialRepo) CreateTutorial(ctx context.Context, ownerSub string, t domain.Tutorial) (*domain.Tutorial, error) {
+func (r *TutorialRepo) CreateTutorial(
+	ctx context.Context,
+	ownerSub string,
+	t domain.Tutorial,
+) (*domain.Tutorial, error) {
 	const q = `
 		INSERT INTO tutorials
 			(owner_sub, title, subject, description, difficulty)
@@ -121,14 +125,18 @@ func (r *TutorialRepo) DeleteTutorial(ctx context.Context, id, ownerSub string) 
 // ── TutorialSessions ──────────────────────────────────────────────────────────
 
 // CreateSession inserts a new tutorial session and returns the fully-populated record.
-func (r *TutorialRepo) CreateSession(ctx context.Context, ownerSub string, s domain.TutorialSession) (*domain.TutorialSession, error) {
+func (r *TutorialRepo) CreateSession(
+	ctx context.Context,
+	ownerSub string,
+	s domain.TutorialSession,
+) (*domain.TutorialSession, error) {
 	const q = `
-		INSERT INTO tutorial_sessions (tutorial_id, owner_sub)
-		VALUES ($1, $2)
-		RETURNING id, tutorial_id, owner_sub, status,
+		INSERT INTO tutorial_sessions (tutorial_id, owner_sub, kind)
+		VALUES ($1, $2, NULLIF($3, ''))
+		RETURNING id, tutorial_id, owner_sub, status, kind,
 		          COALESCE(notes,''), started_at, ended_at`
 
-	row := r.Pool.QueryRow(ctx, q, s.TutorialID, ownerSub)
+	row := r.Pool.QueryRow(ctx, q, s.TutorialID, ownerSub, s.Kind)
 	return scanTutorialSession(row)
 }
 
@@ -136,7 +144,7 @@ func (r *TutorialRepo) CreateSession(ctx context.Context, ownerSub string, s dom
 // Returns ErrNotFound if no matching row exists.
 func (r *TutorialRepo) GetSessionByID(ctx context.Context, id, ownerSub string) (*domain.TutorialSession, error) {
 	const q = `
-		SELECT id, tutorial_id, owner_sub, status,
+		SELECT id, tutorial_id, owner_sub, status, kind,
 		       COALESCE(notes,''), started_at, ended_at
 		FROM tutorial_sessions
 		WHERE id = $1 AND owner_sub = $2`
@@ -147,9 +155,12 @@ func (r *TutorialRepo) GetSessionByID(ctx context.Context, id, ownerSub string) 
 
 // ListSessionsByTutorialID returns all sessions for a tutorial in
 // reverse-chronological order. Ownership is enforced via the owner_sub column.
-func (r *TutorialRepo) ListSessionsByTutorialID(ctx context.Context, tutorialID, ownerSub string) ([]domain.TutorialSession, error) {
+func (r *TutorialRepo) ListSessionsByTutorialID(
+	ctx context.Context,
+	tutorialID, ownerSub string,
+) ([]domain.TutorialSession, error) {
 	const q = `
-		SELECT id, tutorial_id, owner_sub, status,
+		SELECT id, tutorial_id, owner_sub, status, kind,
 		       COALESCE(notes,''), started_at, ended_at
 		FROM tutorial_sessions
 		WHERE tutorial_id = $1 AND owner_sub = $2
@@ -180,7 +191,10 @@ func (r *TutorialRepo) ListSessionsByTutorialID(ctx context.Context, tutorialID,
 
 // CompleteSession marks a session as complete and records ended_at.
 // Returns ErrNotFound when no matching in-progress session is found.
-func (r *TutorialRepo) CompleteSession(ctx context.Context, id, ownerSub, notes string) (*domain.TutorialSession, error) {
+func (r *TutorialRepo) CompleteSession(
+	ctx context.Context,
+	id, ownerSub, notes string,
+) (*domain.TutorialSession, error) {
 	const q = `
 		UPDATE tutorial_sessions
 		SET status   = 'complete',
@@ -188,7 +202,7 @@ func (r *TutorialRepo) CompleteSession(ctx context.Context, id, ownerSub, notes 
 		    ended_at = now()
 		WHERE id = $1 AND owner_sub = $2
 		  AND status = 'in_progress'
-		RETURNING id, tutorial_id, owner_sub, status,
+		RETURNING id, tutorial_id, owner_sub, status, kind,
 		          COALESCE(notes,''), started_at, ended_at`
 
 	row := r.Pool.QueryRow(ctx, q, id, ownerSub, notes)
@@ -211,7 +225,7 @@ func (r *TutorialRepo) AbandonSession(ctx context.Context, id, ownerSub string) 
 		    ended_at = now()
 		WHERE id = $1 AND owner_sub = $2
 		  AND status = 'in_progress'
-		RETURNING id, tutorial_id, owner_sub, status,
+		RETURNING id, tutorial_id, owner_sub, status, kind,
 		          COALESCE(notes,''), started_at, ended_at`
 
 	row := r.Pool.QueryRow(ctx, q, id, ownerSub)
@@ -242,7 +256,11 @@ func (r *TutorialRepo) DeleteSession(ctx context.Context, id, ownerSub string) e
 // ── Artifacts ─────────────────────────────────────────────────────────────────
 
 // CreateArtifact inserts a new artifact and returns the fully-populated record.
-func (r *TutorialRepo) CreateArtifact(ctx context.Context, ownerSub string, a domain.Artifact) (*domain.Artifact, error) {
+func (r *TutorialRepo) CreateArtifact(
+	ctx context.Context,
+	ownerSub string,
+	a domain.Artifact,
+) (*domain.Artifact, error) {
 	const q = `
 		INSERT INTO artifacts (session_id, owner_sub, kind, title, content)
 		VALUES ($1, $2, $3, $4, $5)
@@ -266,7 +284,10 @@ func (r *TutorialRepo) GetArtifactByID(ctx context.Context, id, ownerSub string)
 
 // ListArtifactsBySessionID returns all artifacts for a session in
 // chronological order. Ownership is enforced via the owner_sub column.
-func (r *TutorialRepo) ListArtifactsBySessionID(ctx context.Context, sessionID, ownerSub string) ([]domain.Artifact, error) {
+func (r *TutorialRepo) ListArtifactsBySessionID(
+	ctx context.Context,
+	sessionID, ownerSub string,
+) ([]domain.Artifact, error) {
 	const q = `
 		SELECT id, session_id, owner_sub, kind, title, content, created_at
 		FROM artifacts
@@ -310,6 +331,77 @@ func (r *TutorialRepo) DeleteArtifact(ctx context.Context, id, ownerSub string) 
 	return nil
 }
 
+// ── Tutorial Turns ────────────────────────────────────────────────────────────
+
+// CreateTutorialTurn inserts a new turn for the given tutorial session.
+func (r *TutorialRepo) CreateTutorialTurn(
+	ctx context.Context,
+	sessionID, ownerSub string,
+	turn domain.TutorialTurn,
+) (*domain.TutorialTurn, error) {
+	// First verify the session exists and the owner matches.
+	const checkQ = `SELECT 1 FROM tutorial_sessions WHERE id = $1 AND owner_sub = $2`
+	var exists int
+	if err := r.Pool.QueryRow(ctx, checkQ, sessionID, ownerSub).Scan(&exists); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("check tutorial session ownership: %w", err)
+	}
+
+	const q = `
+		INSERT INTO tutorial_turns (session_id, speaker, text)
+		VALUES ($1, $2, $3)
+		RETURNING id, session_id, speaker, text, created_at`
+
+	row := r.Pool.QueryRow(ctx, q, sessionID, turn.Speaker, turn.Text)
+	return scanTutorialTurn(row)
+}
+
+// ListTutorialTurns returns all turns for a tutorial session, ordered by creation time.
+func (r *TutorialRepo) ListTutorialTurns(
+	ctx context.Context,
+	sessionID, ownerSub string,
+) ([]domain.TutorialTurn, error) {
+	// First verify the session exists and the owner matches.
+	const checkQ = `SELECT 1 FROM tutorial_sessions WHERE id = $1 AND owner_sub = $2`
+	var exists int
+	if err := r.Pool.QueryRow(ctx, checkQ, sessionID, ownerSub).Scan(&exists); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("check tutorial session ownership: %w", err)
+	}
+
+	const q = `
+		SELECT id, session_id, speaker, text, created_at
+		FROM tutorial_turns
+		WHERE session_id = $1
+		ORDER BY created_at ASC`
+
+	rows, err := r.Pool.Query(ctx, q, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("list tutorial turns query: %w", err)
+	}
+	defer rows.Close()
+
+	var result []domain.TutorialTurn
+	for rows.Next() {
+		t, err := scanTutorialTurn(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, *t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list tutorial turns iterate: %w", err)
+	}
+	if result == nil {
+		result = []domain.TutorialTurn{}
+	}
+	return result, nil
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 type tutorialScanner interface {
@@ -339,9 +431,10 @@ type tutorialSessionScanner interface {
 func scanTutorialSession(row tutorialSessionScanner) (*domain.TutorialSession, error) {
 	var s domain.TutorialSession
 	var status string
+	var kind *string
 	err := row.Scan(
 		&s.ID, &s.TutorialID, &s.OwnerSub,
-		&status, &s.Notes,
+		&status, &kind, &s.Notes,
 		&s.StartedAt, &s.EndedAt,
 	)
 	if err != nil {
@@ -351,6 +444,9 @@ func scanTutorialSession(row tutorialSessionScanner) (*domain.TutorialSession, e
 		return nil, fmt.Errorf("scan tutorial session: %w", err)
 	}
 	s.Status = domain.TutorialSessionStatus(status)
+	if kind != nil {
+		s.Kind = domain.TutorialSessionKind(*kind)
+	}
 	return &s, nil
 }
 
@@ -374,6 +470,24 @@ func scanArtifact(row artifactScanner) (*domain.Artifact, error) {
 	}
 	a.Kind = domain.ArtifactKind(kind)
 	return &a, nil
+}
+
+type tutorialTurnScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanTutorialTurn(row tutorialTurnScanner) (*domain.TutorialTurn, error) {
+	var t domain.TutorialTurn
+	err := row.Scan(
+		&t.ID, &t.SessionID, &t.Speaker, &t.Text, &t.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("scan tutorial turn: %w", err)
+	}
+	return &t, nil
 }
 
 // nvlTutStr converts an empty string to nil so pgx stores NULL for nullable columns.

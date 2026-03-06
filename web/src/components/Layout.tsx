@@ -13,7 +13,7 @@ import type {
 } from "@/lib/types";
 import { Box, Button, Flex, HStack, Spacer, Text } from "@chakra-ui/react";
 import { useState } from "react";
-import { Outlet, Link as RouterLink, useNavigate } from "react-router-dom";
+import { Outlet, NavLink as RouterLink, useNavigate } from "react-router-dom";
 
 /**
  * Top-level layout shell: nav bar + page content area.
@@ -125,10 +125,16 @@ export default function Layout() {
             >
               Formation
             </Text>
-            <RouterLink to="/seminars" style={{ color: "inherit", fontSize: "0.9rem" }}>
+            <RouterLink
+              to="/seminars"
+              style={{ color: "inherit", fontSize: "0.9rem" }}
+            >
               Seminars
             </RouterLink>
-            <RouterLink to="/tutorials" style={{ color: "inherit", fontSize: "0.9rem" }}>
+            <RouterLink
+              to="/tutorials"
+              style={{ color: "inherit", fontSize: "0.9rem" }}
+            >
               Tutorials
             </RouterLink>
             <Spacer />

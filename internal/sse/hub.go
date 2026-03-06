@@ -67,6 +67,12 @@ type TurnAddedPayload struct {
 	Turn      domain.Turn `json:"turn"`
 }
 
+// TutorialTurnAddedPayload is carried by turn_added events for tutorial sessions.
+type TutorialTurnAddedPayload struct {
+	SessionID string              `json:"session_id"`
+	Turn      domain.TutorialTurn `json:"turn"`
+}
+
 // SessionCompletedPayload is carried by session_completed events.
 type SessionCompletedPayload struct {
 	SessionID string `json:"session_id"`
@@ -204,6 +210,14 @@ func (h *Hub) PublishTurnAdded(t *domain.Turn) {
 	h.Publish(t.SessionID, Event{
 		Type: EventTurnAdded,
 		Data: TurnAddedPayload{SessionID: t.SessionID, Turn: *t},
+	})
+}
+
+// PublishTutorialTurnAdded emits a turn_added event for the given tutorial turn.
+func (h *Hub) PublishTutorialTurnAdded(t *domain.TutorialTurn) {
+	h.Publish(t.SessionID, Event{
+		Type: EventTurnAdded,
+		Data: TutorialTurnAddedPayload{SessionID: t.SessionID, Turn: *t},
 	})
 }
 

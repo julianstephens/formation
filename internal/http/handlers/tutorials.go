@@ -188,8 +188,10 @@ func (h *TutorialHandler) Delete(c *gin.Context) {
 //
 //	@Summary  Create a session for a tutorial
 //	@Tags     tutorial-sessions
+//	@Accept   json
 //	@Produce  json
-//	@Param    id   path      string  true  "Tutorial ID"
+//	@Param    id   path      string                              true   "Tutorial ID"
+//	@Param    body body      apphttp.CreateTutorialSessionRequest false  "Session parameters"
 //	@Success  201  {object}  apphttp.TutorialSessionResponse
 //	@Router   /v1/tutorials/{id}/sessions [post]
 func (h *TutorialHandler) CreateSession(c *gin.Context) {
@@ -198,7 +200,16 @@ func (h *TutorialHandler) CreateSession(c *gin.Context) {
 		return
 	}
 
-	sess, err := h.sessionSvc.CreateTutorialSession(c.Request.Context(), ownerSub, c.Param("id"))
+	var req apphttp.CreateTutorialSessionRequest
+	// Accept empty body for backward compatibility
+	_ = c.ShouldBindJSON(&req)
+
+	sess, err := h.sessionSvc.CreateTutorialSession(
+		c.Request.Context(),
+		ownerSub,
+		c.Param("id"),
+		domain.TutorialSessionKind(req.Kind),
+	)
 	if err != nil {
 		handleServiceError(c, err)
 		return
@@ -253,6 +264,7 @@ func toTutorialSessionResponse(s domain.TutorialSession) apphttp.TutorialSession
 		ID:         s.ID,
 		TutorialID: s.TutorialID,
 		Status:     s.Status,
+		Kind:       s.Kind,
 		Notes:      s.Notes,
 		StartedAt:  s.StartedAt,
 		EndedAt:    s.EndedAt,
@@ -267,5 +279,15 @@ func toArtifactResponse(a domain.Artifact) apphttp.ArtifactResponse {
 		Title:     a.Title,
 		Content:   a.Content,
 		CreatedAt: a.CreatedAt,
+	}
+}
+
+func toTutorialTurnResponse(t domain.TutorialTurn) apphttp.TutorialTurnResponse {
+	return apphttp.TutorialTurnResponse{
+		ID:        t.ID,
+		SessionID: t.SessionID,
+		Speaker:   t.Speaker,
+		Text:      t.Text,
+		CreatedAt: t.CreatedAt,
 	}
 }
