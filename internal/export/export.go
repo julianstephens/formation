@@ -25,3 +25,17 @@ type SessionExport struct {
 	Session domain.Session `json:"session"`
 	Turns   []domain.Turn  `json:"turns"`
 }
+
+// TutorialExport is the full denormalized export payload for a tutorial.
+// It bundles the tutorial record and every session (each with its ordered turn list).
+type TutorialExport struct {
+	Tutorial domain.Tutorial         `json:"tutorial"`
+	Sessions []TutorialSessionExport `json:"sessions"`
+}
+
+// TutorialSessionExport is the full denormalized export payload for a single tutorial session.
+// It bundles the session record and its ordered turn list.
+type TutorialSessionExport struct {
+	Session domain.TutorialSession `json:"session"`
+	Turns   []domain.TutorialTurn  `json:"turns"`
+}

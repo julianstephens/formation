@@ -139,6 +139,14 @@ export function createApiClient(getToken: () => Promise<string>) {
     exportSessionUrl: (sessionId: string, format: "json" | "md" = "json") =>
       `${BASE_URL}/sessions/${sessionId}/export?format=${format}`,
 
+    exportTutorialUrl: (tutorialId: string, format: "json" | "md" = "json") =>
+      `${BASE_URL}/tutorials/${tutorialId}/export?format=${format}`,
+
+    exportTutorialSessionUrl: (
+      sessionId: string,
+      format: "json" | "md" = "json",
+    ) => `${BASE_URL}/tutorial-sessions/${sessionId}/export?format=${format}`,
+
     // ── Tutorials ─────────────────────────────────────────────────────────────
     listTutorials: () => get<Tutorial[]>("/tutorials"),
 

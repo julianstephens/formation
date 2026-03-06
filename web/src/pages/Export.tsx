@@ -1,9 +1,11 @@
 /**
- * Export page: allows downloading a seminar or session transcript as JSON or
+ * Export page: allows downloading a seminar, session, tutorial, or tutorial session transcript as JSON or
  * Markdown.  The URL shape determines the resource type:
  *
- *   /seminars/:id/export  →  seminar export
- *   /sessions/:id/export  →  session export
+ *   /seminars/:id/export           →  seminar export
+ *   /sessions/:id/export           →  session export
+ *   /tutorials/:id/export          →  tutorial export
+ *   /tutorial-sessions/:id/export  →  tutorial session export
  */
 
 import { useApi } from "@/lib/ApiContext";
@@ -21,10 +23,10 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 type Format = "json" | "md";
-type ResourceType = "seminar" | "session";
+type ResourceType = "seminar" | "session" | "tutorial" | "tutorial_session";
 
 interface ExportPageProps {
-  /** Controls whether the page exports a seminar or a session. */
+  /** Controls whether the page exports a seminar, session, tutorial, or tutorial session. */
   resourceType: ResourceType;
 }
 
@@ -35,35 +37,40 @@ export default function Export({ resourceType }: ExportPageProps) {
   const [format, setFormat] = useState<Format>("json");
   const [error, setError] = useState<string | null>(null);
 
-  const fileName =
-    resourceType === "seminar"
-      ? `seminar-${id ?? "export"}.${format}`
-      : `session-${id ?? "export"}.${format}`;
+  const getFileName = () => {
+    switch (resourceType) {
+      case "seminar":
+        return `seminar-${id ?? "export"}.${format}`;
+      case "session":
+        return `session-${id ?? "export"}.${format}`;
+      case "tutorial":
+        return `tutorial-${id ?? "export"}.${format}`;
+      case "tutorial_session":
+        return `tutorial-session-${id ?? "export"}.${format}`;
+    }
+  };
+
+  const fileName = getFileName();
 
   const handleDownload = async () => {
     if (!id) return;
     setError(null);
     try {
-      // The export URL helper builds the authenticated URL; we still need the
-      // bearer token so we fetch programmatically.
-      // NOTE: api.exportSeminarUrl / exportSessionUrl are plain URL builders.
-      // We must fetch with credentials via the api client's underlying
-      // mechanism.  Since the client only exposes typed methods, we re-create
-      // an authenticated fetch here using the token from the closure that
-      // created the client.  The simplest approach is to open the URL in a new
-      // tab because the browser will include the cookie-based session — but
-      // because Auth0 uses bearer tokens we instead download via fetch.
-      const url =
-        resourceType === "seminar"
-          ? api.exportSeminarUrl(id, format)
-          : api.exportSessionUrl(id, format);
-
-      // We need the token — call the raw export URL via the window if the user
-      // is already authenticated in the browser.  However, to keep it simple
-      // and avoid duplicating token logic, we open the URL directly.  The CORS
-      // pre-flight will be rejected without an Authorization header, so we
-      // perform a fetch with window.fetch after obtaining the token through the
-      // api's sibling client that was created in ApiContext.
+      let url: string;
+      switch (resourceType) {
+        case "seminar":
+          url = api.exportSeminarUrl(id, format);
+          break;
+        case "session":
+          url = api.exportSessionUrl(id, format);
+          break;
+        case "tutorial":
+          url = api.exportTutorialUrl(id, format);
+          break;
+        case "tutorial_session":
+          url = api.exportTutorialSessionUrl(id, format);
+          break;
+      }
 
       // Simple approach: open the URL in a new tab. The backend's CORS config
       // in gin allows credentials. For a polished flow we'd overlay a download
@@ -74,15 +81,38 @@ export default function Export({ resourceType }: ExportPageProps) {
     }
   };
 
-  const backPath =
-    resourceType === "seminar" ? `/seminars/${id}` : `/sessions/${id}/review`;
+  const getTitle = () => {
+    switch (resourceType) {
+      case "seminar":
+        return "Seminar";
+      case "session":
+        return "Session";
+      case "tutorial":
+        return "Tutorial";
+      case "tutorial_session":
+        return "Tutorial Session";
+    }
+  };
+
+  const getBackPath = () => {
+    switch (resourceType) {
+      case "seminar":
+        return `/seminars/${id}`;
+      case "session":
+        return `/sessions/${id}/review`;
+      case "tutorial":
+        return `/tutorials/${id}`;
+      case "tutorial_session":
+        return `/tutorial-sessions/${id}`;
+    }
+  };
+
+  const backPath = getBackPath();
 
   return (
     <Box maxW="lg" mx="auto" w="full">
       <HStack mb={6} justify="space-between">
-        <Heading size="lg">
-          Export {resourceType === "seminar" ? "Seminar" : "Session"}
-        </Heading>
+        <Heading size="lg">Export {getTitle()}</Heading>
         <Button size="sm" variant="ghost" onClick={() => navigate(backPath)}>
           ← Back
         </Button>

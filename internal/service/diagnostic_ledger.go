@@ -276,9 +276,10 @@ func (s *DiagnosticLedgerService) UpdatePatternStatuses(
 		currentWeekKey := currentWeek.Format("2006-01-02")
 		lastWeekKey := lastWeek.Format("2006-01-02")
 
-		if weekKey == currentWeekKey {
+		switch weekKey {
+		case currentWeekKey:
 			patternWeeks[e.PatternCode].thisWeek = true
-		} else if weekKey == lastWeekKey {
+		case lastWeekKey:
 			patternWeeks[e.PatternCode].lastWeek = true
 		}
 	}

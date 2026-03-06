@@ -64,8 +64,16 @@ function App() {
           <Route path="/tutorials" element={<TutorialList />} />
           <Route path="/tutorials/:id" element={<TutorialDetail />} />
           <Route
+            path="/tutorials/:id/export"
+            element={<Export resourceType="tutorial" />}
+          />
+          <Route
             path="/tutorial-sessions/:id"
             element={<TutorialSessionRunner />}
+          />
+          <Route
+            path="/tutorial-sessions/:id/export"
+            element={<Export resourceType="tutorial_session" />}
           />
 
           {/* Default */}

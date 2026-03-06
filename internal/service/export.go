@@ -12,13 +12,18 @@ import (
 // sessions. It does not render them; rendering is handled by the export
 // package renderers so that the service layer stays format-agnostic.
 type ExportService struct {
-	seminars *repo.SeminarRepo
-	sessions *repo.SessionRepo
+	seminars  *repo.SeminarRepo
+	sessions  *repo.SessionRepo
+	tutorials *repo.TutorialRepo
 }
 
 // NewExportService constructs an ExportService backed by the given repositories.
-func NewExportService(seminars *repo.SeminarRepo, sessions *repo.SessionRepo) *ExportService {
-	return &ExportService{seminars: seminars, sessions: sessions}
+func NewExportService(
+	seminars *repo.SeminarRepo,
+	sessions *repo.SessionRepo,
+	tutorials *repo.TutorialRepo,
+) *ExportService {
+	return &ExportService{seminars: seminars, sessions: sessions, tutorials: tutorials}
 }
 
 // ExportSeminar loads the seminar, its thesis history, and every session with
@@ -74,6 +79,64 @@ func (s *ExportService) ExportSession(
 	}
 
 	return &export.SessionExport{
+		Session: *sess,
+		Turns:   turns,
+	}, nil
+}
+
+// ExportTutorial loads the tutorial and every session with turns, assembling them
+// into a single TutorialExport.
+// Returns NotFoundError when the tutorial does not exist or is not owned by ownerSub.
+func (s *ExportService) ExportTutorial(
+	ctx context.Context,
+	tutorialID, ownerSub string,
+) (*export.TutorialExport, error) {
+	tut, err := s.tutorials.GetTutorialByID(ctx, tutorialID, ownerSub)
+	if err != nil {
+		return nil, wrapNotFound(err, "tutorial", tutorialID)
+	}
+
+	sessions, err := s.tutorials.ListSessionsByTutorialID(ctx, tutorialID, ownerSub)
+	if err != nil {
+		return nil, fmt.Errorf("load sessions for tutorial export: %w", err)
+	}
+
+	sessionExports := make([]export.TutorialSessionExport, 0, len(sessions))
+	for _, sess := range sessions {
+		turns, err := s.tutorials.ListTutorialTurns(ctx, sess.ID, ownerSub)
+		if err != nil {
+			return nil, fmt.Errorf("load turns for tutorial session %s: %w", sess.ID, err)
+		}
+		sessionExports = append(sessionExports, export.TutorialSessionExport{
+			Session: sess,
+			Turns:   turns,
+		})
+	}
+
+	return &export.TutorialExport{
+		Tutorial: *tut,
+		Sessions: sessionExports,
+	}, nil
+}
+
+// ExportTutorialSession loads the tutorial session and its turns, assembling them
+// into a TutorialSessionExport.
+// Returns NotFoundError when the session does not exist or is not owned by ownerSub.
+func (s *ExportService) ExportTutorialSession(
+	ctx context.Context,
+	sessionID, ownerSub string,
+) (*export.TutorialSessionExport, error) {
+	sess, err := s.tutorials.GetSessionByID(ctx, sessionID, ownerSub)
+	if err != nil {
+		return nil, wrapNotFound(err, "tutorial_session", sessionID)
+	}
+
+	turns, err := s.tutorials.ListTutorialTurns(ctx, sessionID, ownerSub)
+	if err != nil {
+		return nil, fmt.Errorf("load turns for tutorial session export: %w", err)
+	}
+
+	return &export.TutorialSessionExport{
 		Session: *sess,
 		Turns:   turns,
 	}, nil

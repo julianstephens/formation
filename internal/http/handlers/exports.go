@@ -36,6 +36,16 @@ func (h *ExportHandler) RegisterUnderSessions(rg *gin.RouterGroup) {
 	rg.GET("/:id/export", h.ExportSession)
 }
 
+// RegisterUnderTutorials mounts GET /:id/export on the tutorials router group.
+func (h *ExportHandler) RegisterUnderTutorials(rg *gin.RouterGroup) {
+	rg.GET("/:id/export", h.ExportTutorial)
+}
+
+// RegisterUnderTutorialSessions mounts GET /:id/export on the tutorial-sessions router group.
+func (h *ExportHandler) RegisterUnderTutorialSessions(rg *gin.RouterGroup) {
+	rg.GET("/:id/export", h.ExportTutorialSession)
+}
+
 // ── Handlers ───────────────────────────────────────────────────────────────────
 
 // ExportSeminar godoc
@@ -114,6 +124,86 @@ func (h *ExportHandler) ExportSession(c *gin.Context) {
 		}
 		c.Header("Content-Disposition",
 			fmt.Sprintf(`attachment; filename="session-%s.json"`, id))
+		c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+	}
+}
+
+// ExportTutorial godoc
+//
+//	@Summary  Export a full tutorial
+//	@Tags     exports
+//	@Produce  json
+//	@Param    id      path   string  true   "tutorial ID"
+//	@Param    format  query  string  false  "output format: json (default) or md"
+//	@Success  200
+//	@Router   /v1/tutorials/{id}/export [get]
+func (h *ExportHandler) ExportTutorial(c *gin.Context) {
+	ownerSub, err := auth.MustOwnerSub(c)
+	if err != nil {
+		return
+	}
+	id := c.Param("id")
+
+	result, err := h.svc.ExportTutorial(c.Request.Context(), id, ownerSub)
+	if err != nil {
+		writeExportError(c, err)
+		return
+	}
+
+	switch c.DefaultQuery("format", "json") {
+	case "md":
+		body := export.RenderTutorialMarkdown(result)
+		c.Header("Content-Disposition",
+			fmt.Sprintf(`attachment; filename="tutorial-%s.md"`, id))
+		c.Data(http.StatusOK, "text/markdown; charset=utf-8", body)
+	default:
+		body, err := export.RenderTutorialJSON(result)
+		if err != nil {
+			apphttp.Fail(c, http.StatusInternalServerError, "render_error", "failed to render JSON export")
+			return
+		}
+		c.Header("Content-Disposition",
+			fmt.Sprintf(`attachment; filename="tutorial-%s.json"`, id))
+		c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+	}
+}
+
+// ExportTutorialSession godoc
+//
+//	@Summary  Export a tutorial session transcript
+//	@Tags     exports
+//	@Produce  json
+//	@Param    id      path   string  true   "tutorial session ID"
+//	@Param    format  query  string  false  "output format: json (default) or md"
+//	@Success  200
+//	@Router   /v1/tutorial-sessions/{id}/export [get]
+func (h *ExportHandler) ExportTutorialSession(c *gin.Context) {
+	ownerSub, err := auth.MustOwnerSub(c)
+	if err != nil {
+		return
+	}
+	id := c.Param("id")
+
+	result, err := h.svc.ExportTutorialSession(c.Request.Context(), id, ownerSub)
+	if err != nil {
+		writeExportError(c, err)
+		return
+	}
+
+	switch c.DefaultQuery("format", "json") {
+	case "md":
+		body := export.RenderTutorialSessionMarkdown(result)
+		c.Header("Content-Disposition",
+			fmt.Sprintf(`attachment; filename="tutorial-session-%s.md"`, id))
+		c.Data(http.StatusOK, "text/markdown; charset=utf-8", body)
+	default:
+		body, err := export.RenderTutorialSessionJSON(result)
+		if err != nil {
+			apphttp.Fail(c, http.StatusInternalServerError, "render_error", "failed to render JSON export")
+			return
+		}
+		c.Header("Content-Disposition",
+			fmt.Sprintf(`attachment; filename="tutorial-session-%s.json"`, id))
 		c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 	}
 }

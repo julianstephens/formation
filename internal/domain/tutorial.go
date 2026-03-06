@@ -96,7 +96,11 @@ const (
 // ValidArtifactKind reports whether k is a recognized kind value.
 func ValidArtifactKind(k ArtifactKind) bool {
 	switch k {
-	case ArtifactKindSummary, ArtifactKindNotes, ArtifactKindProblemSet, ArtifactKindProblemSetResponse, ArtifactKindDiagnostic:
+	case ArtifactKindSummary,
+		ArtifactKindNotes,
+		ArtifactKindProblemSet,
+		ArtifactKindProblemSetResponse,
+		ArtifactKindDiagnostic:
 		return true
 	}
 	return false

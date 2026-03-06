@@ -134,6 +134,13 @@ export default function TutorialDetail() {
         </Box>
         <HStack gap={2} wrap="wrap" flexShrink={0}>
           <Badge colorScheme="purple">{tutorial.difficulty}</Badge>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => navigate(`/tutorials/${id}/export`)}
+          >
+            Export
+          </Button>
           <IconButton
             size="sm"
             colorScheme="red"
@@ -209,6 +216,16 @@ export default function TutorialDetail() {
                       <Badge colorScheme={statusColor[s.status] ?? "gray"}>
                         {s.status}
                       </Badge>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/tutorial-sessions/${s.id}/export`);
+                        }}
+                      >
+                        Export
+                      </Button>
                       <IconButton
                         size="xs"
                         colorScheme="red"

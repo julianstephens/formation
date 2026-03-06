@@ -32,6 +32,8 @@ type SessionRouteRegistrar interface {
 type ExportRouteRegistrar interface {
 	RegisterUnderSeminars(rg *gin.RouterGroup)
 	RegisterUnderSessions(rg *gin.RouterGroup)
+	RegisterUnderTutorials(rg *gin.RouterGroup)
+	RegisterUnderTutorialSessions(rg *gin.RouterGroup)
 }
 
 // TutorialRouteRegistrar extends RouteRegistrar with a second mount-point used
@@ -148,6 +150,12 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 		tutorialsGroup.GET("/:id/sessions", placeholder("list tutorial sessions"))
 		tutorialsGroup.POST("/:id/sessions", placeholder("create tutorial session"))
 	}
+	// Tutorial export.
+	if deps.Exports != nil {
+		deps.Exports.RegisterUnderTutorials(tutorialsGroup)
+	} else {
+		tutorialsGroup.GET("/:id/export", placeholder("export tutorial"))
+	}
 	// Tutorial diagnostics and problem sets
 	if deps.TutorialDiagnostics != nil {
 		deps.TutorialDiagnostics.Register(tutorialsGroup)
@@ -169,6 +177,12 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 		tutorialSessionsGroup.GET("/:id/artifacts", placeholder("list artifacts"))
 		tutorialSessionsGroup.POST("/:id/artifacts", placeholder("create artifact"))
 		tutorialSessionsGroup.DELETE("/:id/artifacts/:artifactId", placeholder("delete artifact"))
+	}
+	// Tutorial Session export.
+	if deps.Exports != nil {
+		deps.Exports.RegisterUnderTutorialSessions(tutorialSessionsGroup)
+	} else {
+		tutorialSessionsGroup.GET("/:id/export", placeholder("export tutorial session"))
 	}
 	// Tutorial Session SSE stream.
 	if deps.TutorialSessionEvents != nil {

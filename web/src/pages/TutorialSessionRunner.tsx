@@ -48,9 +48,11 @@ const ARTIFACT_KINDS = [
 function TutorialSessionHeader({
   detail,
   onBack,
+  onExport,
 }: {
   detail: TutorialSessionDetail;
   onBack: () => void;
+  onExport: () => void;
 }) {
   return (
     <HStack mb={4} justify="space-between" align="start" wrap="wrap" gap={2}>
@@ -77,6 +79,9 @@ function TutorialSessionHeader({
         >
           {detail.status}
         </Badge>
+        <Button size="sm" variant="outline" onClick={onExport}>
+          Export
+        </Button>
         <Button size="sm" variant="outline" onClick={onBack}>
           ← Back
         </Button>
@@ -583,6 +588,11 @@ export default function TutorialSessionRunner() {
     }
   };
 
+  const handleExport = () => {
+    if (!id) return;
+    navigate(`/tutorial-sessions/${id}/export`);
+  };
+
   const handleCreateArtifact = async () => {
     if (!id) return;
     const title = artifactTitleRef.current?.value.trim() ?? "";
@@ -646,7 +656,11 @@ export default function TutorialSessionRunner() {
   return (
     <Box maxW="5xl" mx="auto" w="full">
       {/* A. Header */}
-      <TutorialSessionHeader detail={detail} onBack={() => navigate(-1)} />
+      <TutorialSessionHeader
+        detail={detail}
+        onBack={() => navigate(-1)}
+        onExport={handleExport}
+      />
 
       {/* E. Error banners */}
       {error && (

@@ -20,7 +20,10 @@ type TutorialDiagnosticsHandler struct {
 }
 
 // NewTutorialDiagnosticsHandler constructs a handler backed by the given service.
-func NewTutorialDiagnosticsHandler(svc *service.DiagnosticLedgerService, repo *repo.TutorialRepo) *TutorialDiagnosticsHandler {
+func NewTutorialDiagnosticsHandler(
+	svc *service.DiagnosticLedgerService,
+	repo *repo.TutorialRepo,
+) *TutorialDiagnosticsHandler {
 	return &TutorialDiagnosticsHandler{
 		diagnosticSvc: svc,
 		repo:          repo,

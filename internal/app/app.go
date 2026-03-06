@@ -113,21 +113,27 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 
 	eventsHandler := handlers.NewEventsHandler(hub, sessionSvc)
 
-	// 10. Create the export service and handler.
-	exportSvc := service.NewExportService(seminarRepo, sessionRepo)
-	exportHandler := handlers.NewExportHandler(exportSvc)
-
 	// 11. Wire tutorial repositories, services, and handlers.
 	tutorialRepo := repo.NewTutorialRepo(base)
 	diagnosticLedgerSvc := service.NewDiagnosticLedgerService(tutorialRepo)
 	tutorialSvc := service.NewTutorialService(tutorialRepo)
 	tutorialSessionSvc := service.NewTutorialSessionService(tutorialRepo)
 	artifactSvc := service.NewArtifactService(tutorialRepo)
-	tutorialTurnSvc := service.NewTutorialTurnService(tutorialRepo, tutorialAssembler, hub, openaiProvider, diagnosticLedgerSvc)
+	tutorialTurnSvc := service.NewTutorialTurnService(
+		tutorialRepo,
+		tutorialAssembler,
+		hub,
+		openaiProvider,
+		diagnosticLedgerSvc,
+	)
 	tutorialHandler := handlers.NewTutorialHandler(tutorialSvc, tutorialSessionSvc)
 	tutorialSessionHandler := handlers.NewTutorialSessionHandler(tutorialSessionSvc, artifactSvc, tutorialTurnSvc)
 	tutorialSessionEventsHandler := handlers.NewTutorialSessionEventsHandler(hub, tutorialSessionSvc)
 	tutorialDiagnosticsHandler := handlers.NewTutorialDiagnosticsHandler(diagnosticLedgerSvc, tutorialRepo)
+
+	// 10. Create the export service and handler.
+	exportSvc := service.NewExportService(seminarRepo, sessionRepo, tutorialRepo)
+	exportHandler := handlers.NewExportHandler(exportSvc)
 
 	// 9. Build HTTP server.
 	router := apphttp.NewRouter(apphttp.RouterDeps{

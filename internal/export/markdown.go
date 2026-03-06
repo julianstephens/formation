@@ -117,3 +117,89 @@ func fmtTime(t time.Time) string {
 	}
 	return t.UTC().Format("2006-01-02 15:04 UTC")
 }
+
+// RenderTutorialMarkdown produces a human-readable Markdown document for a
+// full tutorial export including all sessions and their transcripts.
+func RenderTutorialMarkdown(e *TutorialExport) []byte {
+	var sb strings.Builder
+
+	// ── Header ────────────────────────────────────────────────────────────────
+	fmt.Fprintf(&sb, "# Tutorial Export: %s\n\n", e.Tutorial.Title)
+	fmt.Fprintf(&sb, "**Subject:** %s  \n", e.Tutorial.Subject)
+	if e.Tutorial.Description != "" {
+		fmt.Fprintf(&sb, "**Description:** %s  \n", e.Tutorial.Description)
+	}
+	fmt.Fprintf(&sb, "**Difficulty:** %s  \n", e.Tutorial.Difficulty)
+	fmt.Fprintf(&sb, "**Created:** %s  \n\n", fmtTime(e.Tutorial.CreatedAt))
+
+	// ── Sessions ──────────────────────────────────────────────────────────────
+	if len(e.Sessions) > 0 {
+		fmt.Fprintf(&sb, "## Sessions (%d)\n\n", len(e.Sessions))
+		for i, se := range e.Sessions {
+			renderTutorialSessionSection(&sb, i+1, &se)
+		}
+	} else {
+		sb.WriteString("## Sessions\n\n_No sessions recorded._\n")
+	}
+
+	return []byte(sb.String())
+}
+
+// RenderTutorialSessionMarkdown produces a human-readable Markdown document for a
+// single tutorial session export including its full transcript.
+func RenderTutorialSessionMarkdown(e *TutorialSessionExport) []byte {
+	var sb strings.Builder
+
+	fmt.Fprintf(&sb, "# Tutorial Session Export\n\n")
+	renderTutorialSessionSection(&sb, 0, e)
+
+	return []byte(sb.String())
+}
+
+// ── tutorial helpers ──────────────────────────────────────────────────────────
+
+func renderTutorialSessionSection(sb *strings.Builder, n int, se *TutorialSessionExport) {
+	s := se.Session
+
+	// Section heading: numbered when called from tutorial export, plain otherwise.
+	if n > 0 {
+		fmt.Fprintf(sb, "### %d. Tutorial Session\n\n", n)
+	}
+
+	fmt.Fprintf(sb, "**Session ID:** %s  \n", s.ID)
+	fmt.Fprintf(sb, "**Status:** %s  \n", s.Status)
+	if s.Kind != "" {
+		fmt.Fprintf(sb, "**Kind:** %s  \n", s.Kind)
+	}
+	if s.Notes != "" {
+		fmt.Fprintf(sb, "**Notes:** %s  \n", s.Notes)
+	}
+	fmt.Fprintf(sb, "**Started:** %s  \n", fmtTime(s.StartedAt))
+	if s.EndedAt != nil {
+		fmt.Fprintf(sb, "**Ended:** %s  \n", fmtTime(*s.EndedAt))
+	}
+
+	sb.WriteString("\n#### Transcript\n\n")
+
+	if len(se.Turns) == 0 {
+		sb.WriteString("_No turns recorded._\n\n")
+		return
+	}
+
+	for _, t := range se.Turns {
+		speaker := tutorialSpeakerLabel(t.Speaker)
+		fmt.Fprintf(sb, "**%s** _%s_\n\n%s\n\n",
+			speaker, fmtTime(t.CreatedAt), t.Text)
+	}
+}
+
+func tutorialSpeakerLabel(speaker string) string {
+	switch speaker {
+	case "agent":
+		return "Tutor"
+	case "system":
+		return "System"
+	default:
+		return "You"
+	}
+}

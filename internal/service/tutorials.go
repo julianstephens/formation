@@ -707,11 +707,6 @@ func formatArtifacts(artifacts []domain.Artifact) string {
 	return sb.String()
 }
 
-// formatSingleArtifact formats a single artifact for the prompt.
-func formatSingleArtifact(art domain.Artifact) string {
-	return fmt.Sprintf("--- %s: %s ---\n%s", art.Kind, art.Title, art.Content)
-}
-
 // formatPatternSummary converts a pattern summary into prompt-ready text.
 func formatPatternSummary(summary PatternSummary) string {
 	if len(summary.Items) == 0 {
