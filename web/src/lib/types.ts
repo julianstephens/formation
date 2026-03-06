@@ -86,3 +86,65 @@ export interface CreateSessionInput {
   excerpt_text?: string;
   recon_minutes?: number;
 }
+
+// ── Tutorial ──────────────────────────────────────────────────────────────────
+
+export interface Tutorial {
+  id: string;
+  title: string;
+  subject: string;
+  description?: string;
+  difficulty: "beginner" | "intermediate" | "advanced";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateTutorialInput {
+  title: string;
+  subject: string;
+  description?: string;
+  difficulty?: "beginner" | "intermediate" | "advanced";
+}
+
+export interface UpdateTutorialInput {
+  title?: string;
+  subject?: string;
+  description?: string;
+  difficulty?: "beginner" | "intermediate" | "advanced";
+}
+
+// ── TutorialSession ───────────────────────────────────────────────────────────
+
+export type TutorialSessionStatus = "in_progress" | "complete" | "abandoned";
+
+export interface TutorialSession {
+  id: string;
+  tutorial_id: string;
+  status: TutorialSessionStatus;
+  notes?: string;
+  started_at: string;
+  ended_at?: string;
+}
+
+export interface TutorialSessionDetail extends TutorialSession {
+  artifacts: Artifact[];
+}
+
+// ── Artifact ──────────────────────────────────────────────────────────────────
+
+export type ArtifactKind = "summary" | "notes" | "problem_set" | "diagnostic";
+
+export interface Artifact {
+  id: string;
+  session_id: string;
+  kind: ArtifactKind;
+  title: string;
+  content: string;
+  created_at: string;
+}
+
+export interface CreateArtifactInput {
+  kind: ArtifactKind;
+  title: string;
+  content: string;
+}

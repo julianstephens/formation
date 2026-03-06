@@ -128,6 +128,9 @@ export default function Layout() {
             <RouterLink to="/seminars" style={{ color: "inherit", fontSize: "0.9rem" }}>
               Seminars
             </RouterLink>
+            <RouterLink to="/tutorials" style={{ color: "inherit", fontSize: "0.9rem" }}>
+              Tutorials
+            </RouterLink>
             <Spacer />
             {user && (
               <HStack gap={2} flexShrink={0}>

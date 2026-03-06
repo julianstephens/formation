@@ -11,6 +11,9 @@ import SeminarDetail from "@/pages/SeminarDetail";
 import SeminarList from "@/pages/SeminarList";
 import SessionReview from "@/pages/SessionReview";
 import SessionRunner from "@/pages/SessionRunner";
+import TutorialDetail from "@/pages/TutorialDetail";
+import TutorialList from "@/pages/TutorialList";
+import TutorialSessionRunner from "@/pages/TutorialSessionRunner";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 function App() {
@@ -53,6 +56,11 @@ function App() {
             path="/sessions/:id/export"
             element={<Export resourceType="session" />}
           />
+
+          {/* Tutorials */}
+          <Route path="/tutorials" element={<TutorialList />} />
+          <Route path="/tutorials/:id" element={<TutorialDetail />} />
+          <Route path="/tutorial-sessions/:id" element={<TutorialSessionRunner />} />
 
           {/* Default */}
           <Route path="/" element={<Navigate to="/seminars" replace />} />

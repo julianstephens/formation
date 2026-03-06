@@ -95,6 +95,76 @@ type SessionDetailResponse struct {
 	Turns []TurnResponse `json:"turns"`
 }
 
+// ── Tutorial request DTOs ──────────────────────────────────────────────────────
+
+// CreateTutorialRequest is the body for POST /v1/tutorials.
+type CreateTutorialRequest struct {
+	Title       string `json:"title"       binding:"required"`
+	Subject     string `json:"subject"     binding:"required"`
+	Description string `json:"description"`
+	Difficulty  string `json:"difficulty"`
+}
+
+// UpdateTutorialRequest is the body for PATCH /v1/tutorials/:id.
+// All fields are optional; nil means "leave unchanged".
+type UpdateTutorialRequest struct {
+	Title       *string `json:"title"`
+	Subject     *string `json:"subject"`
+	Description *string `json:"description"`
+	Difficulty  *string `json:"difficulty"`
+}
+
+// CompleteTutorialSessionRequest is the body for POST /v1/tutorial-sessions/:id/complete.
+type CompleteTutorialSessionRequest struct {
+	Notes string `json:"notes"`
+}
+
+// CreateArtifactRequest is the body for POST /v1/tutorial-sessions/:id/artifacts.
+type CreateArtifactRequest struct {
+	Kind    string `json:"kind"    binding:"required"`
+	Title   string `json:"title"   binding:"required"`
+	Content string `json:"content" binding:"required"`
+}
+
+// ── Tutorial response DTOs ─────────────────────────────────────────────────────
+
+// TutorialResponse is the JSON representation of a Tutorial resource.
+type TutorialResponse struct {
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	Subject     string    `json:"subject"`
+	Description string    `json:"description,omitempty"`
+	Difficulty  string    `json:"difficulty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// TutorialSessionResponse is the JSON representation of a TutorialSession resource.
+type TutorialSessionResponse struct {
+	ID         string                        `json:"id"`
+	TutorialID string                        `json:"tutorial_id"`
+	Status     domain.TutorialSessionStatus  `json:"status"`
+	Notes      string                        `json:"notes,omitempty"`
+	StartedAt  time.Time                     `json:"started_at"`
+	EndedAt    *time.Time                    `json:"ended_at,omitempty"`
+}
+
+// ArtifactResponse is the JSON representation of an Artifact resource.
+type ArtifactResponse struct {
+	ID        string             `json:"id"`
+	SessionID string             `json:"session_id"`
+	Kind      domain.ArtifactKind `json:"kind"`
+	Title     string             `json:"title"`
+	Content   string             `json:"content"`
+	CreatedAt time.Time          `json:"created_at"`
+}
+
+// TutorialSessionDetailResponse is the JSON representation of a session with its artifacts.
+type TutorialSessionDetailResponse struct {
+	TutorialSessionResponse
+	Artifacts []ArtifactResponse `json:"artifacts"`
+}
+
 // ── Turn request DTOs ──────────────────────────────────────────────────────────
 
 // SubmitTurnRequest is the body for POST /v1/sessions/:id/turns.
