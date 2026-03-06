@@ -1,6 +1,11 @@
+import { NewTutorialSessionDialog } from "@/components/dialogs/NewTutorialSessionDialog";
 import { ApiRequestError } from "@/lib/api";
 import { useApi } from "@/lib/ApiContext";
-import type { Tutorial, TutorialSession } from "@/lib/types";
+import type {
+  Tutorial,
+  TutorialSession,
+  TutorialSessionKind,
+} from "@/lib/types";
 import {
   Badge,
   Box,
@@ -34,6 +39,10 @@ export default function TutorialDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedKind, setSelectedKind] = useState<TutorialSessionKind | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -68,11 +77,19 @@ export default function TutorialDetail() {
     }
   };
 
+  const handleOpenDialog = () => {
+    setSelectedKind(null);
+    setDialogOpen(true);
+  };
+
   const handleStartSession = async () => {
     if (!id) return;
     setStarting(true);
+    setDialogOpen(false);
     try {
-      const sess = await api.createTutorialSession(id);
+      const sess = await api.createTutorialSession(id, {
+        kind: selectedKind ?? undefined,
+      });
       navigate(`/tutorial-sessions/${sess.id}`);
     } catch (e) {
       setError(String(e));
@@ -132,11 +149,7 @@ export default function TutorialDetail() {
 
       {tutorial.description && (
         <Card.Root mb={6} p={4}>
-          <Text
-            fontSize="sm"
-            color="gray.600"
-            _dark={{ color: "gray.400" }}
-          >
+          <Text fontSize="sm" color="gray.600" _dark={{ color: "gray.400" }}>
             {tutorial.description}
           </Text>
         </Card.Root>
@@ -157,8 +170,7 @@ export default function TutorialDetail() {
             color="black"
             _hover={{ bg: "#fbbf24" }}
             size="sm"
-            loading={starting}
-            onClick={handleStartSession}
+            onClick={handleOpenDialog}
           >
             Start Session
           </Button>
@@ -178,9 +190,15 @@ export default function TutorialDetail() {
                       cursor="pointer"
                       onClick={() => navigate(`/tutorial-sessions/${s.id}`)}
                     >
-                      <Text fontWeight="medium" wordBreak="break-word">
-                        Session
-                      </Text>
+                      <HStack gap={2}>
+                        <Text
+                          fontWeight="medium"
+                          textTransform="capitalize"
+                          wordBreak="break-word"
+                        >
+                          {s.kind ? `${s.kind} Tutorial` : "Tutorial"}
+                        </Text>
+                      </HStack>
                       <Text fontSize="xs" color="gray.500">
                         {new Date(s.started_at).toLocaleDateString()}
                         {s.ended_at &&
@@ -212,6 +230,15 @@ export default function TutorialDetail() {
           </Stack>
         )}
       </Box>
+
+      <NewTutorialSessionDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        selectedKind={selectedKind}
+        onKindChange={setSelectedKind}
+        starting={starting}
+        onStart={handleStartSession}
+      />
     </Box>
   );
 }

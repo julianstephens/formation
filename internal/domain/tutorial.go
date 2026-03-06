@@ -46,12 +46,30 @@ func ValidTutorialSessionStatus(s TutorialSessionStatus) bool {
 	return false
 }
 
+// TutorialSessionKind represents the type of tutorial session.
+type TutorialSessionKind string
+
+const (
+	TutorialSessionKindDiagnostic TutorialSessionKind = "diagnostic"
+	TutorialSessionKindExtended   TutorialSessionKind = "extended"
+)
+
+// ValidTutorialSessionKind reports whether k is a recognized kind value.
+func ValidTutorialSessionKind(k TutorialSessionKind) bool {
+	switch k {
+	case TutorialSessionKindDiagnostic, TutorialSessionKindExtended:
+		return true
+	}
+	return false
+}
+
 // TutorialSession is a single tutorial session owned by a user.
 type TutorialSession struct {
 	ID         string                `json:"id"`
 	TutorialID string                `json:"tutorial_id"`
 	OwnerSub   string                `json:"-"`
 	Status     TutorialSessionStatus `json:"status"`
+	Kind       TutorialSessionKind   `json:"kind,omitempty"`
 	Notes      string                `json:"notes,omitempty"`
 	StartedAt  time.Time             `json:"started_at"`
 	EndedAt    *time.Time            `json:"ended_at,omitempty"`
@@ -92,4 +110,15 @@ type Artifact struct {
 	Title     string       `json:"title"`
 	Content   string       `json:"content"`
 	CreatedAt time.Time    `json:"created_at"`
+}
+
+// ── TutorialTurn ───────────────────────────────────────────────────────────────
+
+// TutorialTurn is a single message within a tutorial session conversation.
+type TutorialTurn struct {
+	ID        string    `json:"id"`
+	SessionID string    `json:"session_id"`
+	Speaker   string    `json:"speaker"` // "user" | "agent" | "system"
+	Text      string    `json:"text"`
+	CreatedAt time.Time `json:"created_at"`
 }

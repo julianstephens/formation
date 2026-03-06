@@ -117,10 +117,7 @@ export interface UpdateTutorialInput {
 
 export type TutorialSessionStatus = "in_progress" | "complete" | "abandoned";
 
-export type TutorialSessionKind =
-  | "diagnostic_tuesday"
-  | "diagnostic_thursday"
-  | "extended_sunday";
+export type TutorialSessionKind = "diagnostic" | "extended";
 
 export interface TutorialSession {
   id: string;
@@ -132,15 +129,23 @@ export interface TutorialSession {
   ended_at?: string;
 }
 
+export interface CreateTutorialSessionInput {
+  kind?: TutorialSessionKind;
+}
+
 export type TutorialTurnSpeaker = "user" | "agent" | "system";
 
 export interface TutorialTurn {
   id: string;
-  tutorial_session_id: string;
+  session_id: string;
   speaker: TutorialTurnSpeaker;
   text: string;
-  flags: string[];
   created_at: string;
+}
+
+export interface SubmitTutorialTurnResponse {
+  user_turn: TutorialTurn;
+  agent_turn?: TutorialTurn;
 }
 
 export interface TutorialSessionDetail extends TutorialSession {

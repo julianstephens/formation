@@ -133,12 +133,11 @@ export function useTutorialSessionEvents(
           }
         }
       } catch (e) {
-        if (
-          !cancelled &&
-          !(e instanceof DOMException && e.name === "AbortError")
-        ) {
+        if (!(e instanceof DOMException && e.name === "AbortError")) {
           options.onConnectionError?.(e);
         }
+      } finally {
+        cancelled = true;
       }
     }
 

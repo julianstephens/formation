@@ -64,7 +64,7 @@ export function TutorialSessionEventsProvider({
     }
 
     const controller = new AbortController();
-    const cancelled = false;
+    let cancelled = false;
 
     async function connect() {
       try {
@@ -126,12 +126,11 @@ export function TutorialSessionEventsProvider({
           }
         }
       } catch (e) {
-        if (
-          !cancelled &&
-          !(e instanceof DOMException && e.name === "AbortError")
-        ) {
+        if (!(e instanceof DOMException && e.name === "AbortError")) {
           handlers.onConnectionError?.(e);
         }
+      } finally {
+        cancelled = true;
       }
     }
 

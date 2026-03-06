@@ -14,16 +14,19 @@ import (
 type TutorialSessionHandler struct {
 	sessionSvc  *service.TutorialSessionService
 	artifactSvc *service.ArtifactService
+	turnSvc     *service.TutorialTurnService
 }
 
 // NewTutorialSessionHandler constructs a TutorialSessionHandler.
 func NewTutorialSessionHandler(
 	sessionSvc *service.TutorialSessionService,
 	artifactSvc *service.ArtifactService,
+	turnSvc *service.TutorialTurnService,
 ) *TutorialSessionHandler {
 	return &TutorialSessionHandler{
 		sessionSvc:  sessionSvc,
 		artifactSvc: artifactSvc,
+		turnSvc:     turnSvc,
 	}
 }
 
@@ -39,13 +42,15 @@ func (h *TutorialSessionHandler) Register(rg *gin.RouterGroup) {
 	rg.GET("/:id/artifacts", h.ListArtifacts)
 	rg.POST("/:id/artifacts", h.CreateArtifact)
 	rg.DELETE("/:id/artifacts/:artifactId", h.DeleteArtifact)
+	rg.POST("/:id/turns", h.SubmitTurn)
+	rg.GET("/:id/turns", h.ListTurns)
 }
 
 // ── Session Handlers ───────────────────────────────────────────────────────────
 
 // Get godoc
 //
-//	@Summary  Get a tutorial session with its artifacts
+//	@Summary  Get a tutorial session with its artifacts and turns
 //	@Tags     tutorial-sessions
 //	@Produce  json
 //	@Param    id   path      string  true  "Session ID"
@@ -67,9 +72,16 @@ func (h *TutorialSessionHandler) Get(c *gin.Context) {
 	for i, a := range detail.Artifacts {
 		artifacts[i] = toArtifactResponse(a)
 	}
+
+	turns := make([]apphttp.TutorialTurnResponse, len(detail.Turns))
+	for i, t := range detail.Turns {
+		turns[i] = toTutorialTurnResponse(t)
+	}
+
 	resp := apphttp.TutorialSessionDetailResponse{
 		TutorialSessionResponse: toTutorialSessionResponse(*detail.Session),
 		Artifacts:               artifacts,
+		Turns:                   turns,
 	}
 	c.JSON(http.StatusOK, resp)
 }
@@ -231,6 +243,80 @@ func (h *TutorialSessionHandler) DeleteArtifact(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// ── Tutorial Turn Handlers ─────────────────────────────────────────────────────
+
+// SubmitTurn godoc
+//
+//	@Summary  Submit a user turn in a tutorial session
+//	@Tags     tutorial-turns
+//	@Accept   json
+//	@Produce  json
+//	@Param    id    path      string                                true  "Session ID"
+//	@Param    body  body      apphttp.SubmitTutorialTurnRequest     true  "turn text"
+//	@Success  201   {object}  apphttp.SubmitTutorialTurnResponse
+//	@Router   /v1/tutorial-sessions/{id}/turns [post]
+func (h *TutorialSessionHandler) SubmitTurn(c *gin.Context) {
+	ownerSub, err := auth.MustOwnerSub(c)
+	if err != nil {
+		return
+	}
+
+	var req apphttp.SubmitTutorialTurnRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apphttp.Fail(c, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+
+	result, err := h.turnSvc.SubmitTutorialTurn(c.Request.Context(), c.Param("id"), ownerSub, req.Text)
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	if result == nil || result.UserTurn == nil {
+		apphttp.Fail(c, http.StatusInternalServerError, "internal_error",
+			"invalid service response: missing user turn")
+		return
+	}
+
+	resp := apphttp.SubmitTutorialTurnResponse{
+		UserTurn: toTutorialTurnResponse(*result.UserTurn),
+	}
+	if result.AgentTurn != nil {
+		ar := toTutorialTurnResponse(*result.AgentTurn)
+		resp.AgentTurn = &ar
+	}
+
+	c.JSON(http.StatusCreated, resp)
+}
+
+// ListTurns godoc
+//
+//	@Summary  List all turns in a tutorial session
+//	@Tags     tutorial-turns
+//	@Produce  json
+//	@Param    id   path      string  true  "Session ID"
+//	@Success  200  {array}   apphttp.TutorialTurnResponse
+//	@Router   /v1/tutorial-sessions/{id}/turns [get]
+func (h *TutorialSessionHandler) ListTurns(c *gin.Context) {
+	ownerSub, err := auth.MustOwnerSub(c)
+	if err != nil {
+		return
+	}
+
+	turns, err := h.turnSvc.ListTutorialTurns(c.Request.Context(), c.Param("id"), ownerSub)
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	resp := make([]apphttp.TutorialTurnResponse, len(turns))
+	for i, t := range turns {
+		resp[i] = toTutorialTurnResponse(t)
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────────

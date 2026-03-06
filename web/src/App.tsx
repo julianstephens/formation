@@ -63,7 +63,10 @@ function App() {
           {/* Tutorials */}
           <Route path="/tutorials" element={<TutorialList />} />
           <Route path="/tutorials/:id" element={<TutorialDetail />} />
-          <Route path="/tutorial-sessions/:id" element={<TutorialSessionRunner />} />
+          <Route
+            path="/tutorial-sessions/:id"
+            element={<TutorialSessionRunner />}
+          />
 
           {/* Default */}
           <Route path="/" element={<Navigate to="/seminars" replace />} />

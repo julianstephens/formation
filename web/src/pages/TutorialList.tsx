@@ -35,7 +35,9 @@ export default function TutorialList() {
   const titleRef = useRef<HTMLInputElement>(null);
   const subjectRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLInputElement>(null);
-  const [difficulty, setDifficulty] = useState<"beginner" | "intermediate" | "advanced">("beginner");
+  const [difficulty, setDifficulty] = useState<
+    "beginner" | "intermediate" | "advanced"
+  >("beginner");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,7 +60,12 @@ export default function TutorialList() {
     const subject = subjectRef.current?.value.trim() ?? "";
     if (!title || !subject) return;
 
-    const input: CreateTutorialInput = { title, subject, description: descriptionRef.current?.value.trim(), difficulty };
+    const input: CreateTutorialInput = {
+      title,
+      subject,
+      description: descriptionRef.current?.value.trim(),
+      difficulty,
+    };
     setCreating(true);
     try {
       const created = await api.createTutorial(input);
@@ -94,22 +101,40 @@ export default function TutorialList() {
             <input
               ref={titleRef}
               placeholder="Title *"
-              style={{ padding: "6px 10px", border: "1px solid #ccc", borderRadius: 4 }}
+              style={{
+                padding: "6px 10px",
+                border: "1px solid #ccc",
+                borderRadius: 4,
+              }}
             />
             <input
               ref={subjectRef}
               placeholder="Subject *"
-              style={{ padding: "6px 10px", border: "1px solid #ccc", borderRadius: 4 }}
+              style={{
+                padding: "6px 10px",
+                border: "1px solid #ccc",
+                borderRadius: 4,
+              }}
             />
             <input
               ref={descriptionRef}
               placeholder="Description (optional)"
-              style={{ padding: "6px 10px", border: "1px solid #ccc", borderRadius: 4 }}
+              style={{
+                padding: "6px 10px",
+                border: "1px solid #ccc",
+                borderRadius: 4,
+              }}
             />
             <select
               value={difficulty}
-              onChange={(e) => setDifficulty(e.target.value as typeof difficulty)}
-              style={{ padding: "6px 10px", border: "1px solid #ccc", borderRadius: 4 }}
+              onChange={(e) =>
+                setDifficulty(e.target.value as typeof difficulty)
+              }
+              style={{
+                padding: "6px 10px",
+                border: "1px solid #ccc",
+                borderRadius: 4,
+              }}
             >
               <option value="beginner">Beginner</option>
               <option value="intermediate">Intermediate</option>
@@ -157,7 +182,9 @@ export default function TutorialList() {
                     <Heading size="sm" lineClamp={1}>
                       {t.title}
                     </Heading>
-                    <Badge colorScheme={difficultyColor[t.difficulty] ?? "gray"}>
+                    <Badge
+                      colorScheme={difficultyColor[t.difficulty] ?? "gray"}
+                    >
                       {t.difficulty}
                     </Badge>
                   </HStack>

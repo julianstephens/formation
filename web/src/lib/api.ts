@@ -14,14 +14,16 @@ import type {
   CreateSeminarInput,
   CreateSessionInput,
   CreateTutorialInput,
+  CreateTutorialSessionInput,
   Seminar,
   Session,
   SessionDetail,
+  SubmitTutorialTurnResponse,
+  Turn,
   Tutorial,
   TutorialSession,
   TutorialSessionDetail,
   TutorialTurn,
-  Turn,
   UpdateSeminarInput,
   UpdateTutorialInput,
 } from "./types";
@@ -151,8 +153,11 @@ export function createApiClient(getToken: () => Promise<string>) {
     deleteTutorial: (id: string) => del<void>(`/tutorials/${id}`),
 
     // ── Tutorial Sessions ─────────────────────────────────────────────────────
-    createTutorialSession: (tutorialId: string) =>
-      post<TutorialSession>(`/tutorials/${tutorialId}/sessions`),
+    createTutorialSession: (
+      tutorialId: string,
+      input?: CreateTutorialSessionInput,
+    ) =>
+      post<TutorialSession>(`/tutorials/${tutorialId}/sessions`, input ?? {}),
 
     listTutorialSessions: (tutorialId: string) =>
       get<TutorialSession[]>(`/tutorials/${tutorialId}/sessions`),
@@ -183,7 +188,10 @@ export function createApiClient(getToken: () => Promise<string>) {
 
     // ── Tutorial Turns ────────────────────────────────────────────────────────
     submitTutorialTurn: (sessionId: string, text: string) =>
-      post<TutorialTurn>(`/tutorial-sessions/${sessionId}/turns`, { text }),
+      post<SubmitTutorialTurnResponse>(
+        `/tutorial-sessions/${sessionId}/turns`,
+        { text },
+      ),
 
     listTutorialTurns: (sessionId: string) =>
       get<TutorialTurn[]>(`/tutorial-sessions/${sessionId}/turns`),

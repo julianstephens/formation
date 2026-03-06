@@ -36,7 +36,12 @@ const artifactKindColor: Record<string, string> = {
   diagnostic: "purple",
 };
 
-const ARTIFACT_KINDS = ["summary", "notes", "problem_set", "diagnostic"] as const satisfies readonly ArtifactKind[];
+const ARTIFACT_KINDS = [
+  "summary",
+  "notes",
+  "problem_set",
+  "diagnostic",
+] as const satisfies readonly ArtifactKind[];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -121,11 +126,13 @@ function TutorialTurnList({
                   borderLeftColor={
                     isUser ? "blue.500" : isSystem ? "gray.400" : "teal.500"
                   }
-                  bg={
-                    isUser ? "blue.50" : isSystem ? "gray.100" : "teal.50"
-                  }
+                  bg={isUser ? "blue.50" : isSystem ? "gray.100" : "teal.50"}
                   _dark={{
-                    bg: isUser ? "blue.900" : isSystem ? "gray.700" : "teal.900",
+                    bg: isUser
+                      ? "blue.900"
+                      : isSystem
+                        ? "gray.700"
+                        : "teal.900",
                   }}
                   rounded="md"
                   opacity={isSystem ? 0.8 : 1}
@@ -138,12 +145,6 @@ function TutorialTurnList({
                     >
                       {isUser ? "👤 You" : isSystem ? "⚙ System" : "🤖 Agent"}
                     </Badge>
-                    {t.flags?.length > 0 &&
-                      t.flags.map((f) => (
-                        <Badge key={f} colorScheme="red" size="sm">
-                          {f}
-                        </Badge>
-                      ))}
                   </HStack>
                   <Text fontSize="sm" whiteSpace="pre-wrap" lineHeight="1.6">
                     {t.text}
@@ -309,7 +310,11 @@ function ArtifactComposer({
         <select
           value={artifactKind}
           onChange={(e) => setArtifactKind(e.target.value as ArtifactKind)}
-          style={{ padding: "6px 10px", border: "1px solid #ccc", borderRadius: 4 }}
+          style={{
+            padding: "6px 10px",
+            border: "1px solid #ccc",
+            borderRadius: 4,
+          }}
         >
           {ARTIFACT_KINDS.map((k) => (
             <option key={k} value={k}>
@@ -320,7 +325,11 @@ function ArtifactComposer({
         <input
           ref={titleRef}
           placeholder="Title *"
-          style={{ padding: "6px 10px", border: "1px solid #ccc", borderRadius: 4 }}
+          style={{
+            padding: "6px 10px",
+            border: "1px solid #ccc",
+            borderRadius: 4,
+          }}
         />
         <Textarea ref={contentRef} placeholder="Content *" rows={6} />
         <HStack gap={2}>
@@ -384,7 +393,11 @@ function TutorialSessionActions({
         <Card.Root mt={4} p={4}>
           <VStack align="stretch" gap={3}>
             <Text fontWeight="medium">Session Notes (optional)</Text>
-            <Textarea ref={notesRef} placeholder="Add any final notes..." rows={4} />
+            <Textarea
+              ref={notesRef}
+              placeholder="Add any final notes..."
+              rows={4}
+            />
             <Button
               bg="#f59e0b"
               color="black"
@@ -471,15 +484,16 @@ export default function TutorialSessionRunner() {
     },
     onArtifactAdded: ({ artifact }) => {
       setDetail((prev) =>
-        prev
-          ? { ...prev, artifacts: [...prev.artifacts, artifact] }
-          : prev,
+        prev ? { ...prev, artifacts: [...prev.artifacts, artifact] } : prev,
       );
     },
     onArtifactDeleted: ({ artifact_id }) => {
       setDetail((prev) =>
         prev
-          ? { ...prev, artifacts: prev.artifacts.filter((a) => a.id !== artifact_id) }
+          ? {
+              ...prev,
+              artifacts: prev.artifacts.filter((a) => a.id !== artifact_id),
+            }
           : prev,
       );
     },
@@ -500,17 +514,39 @@ export default function TutorialSessionRunner() {
     const text = composerRef.current.value.trim();
     if (!text) return;
 
+    // Clear input and add optimistic user turn immediately
+    composerRef.current.value = "";
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticUserTurn: TutorialTurn = {
+      id: optimisticId,
+      session_id: id,
+      speaker: "user",
+      text,
+      created_at: new Date().toISOString(),
+    };
+    setTurns((prev) => [...prev, optimisticUserTurn]);
+
     setSubmittingTurn(true);
     setTurnError(null);
 
     try {
-      const agentTurn = await api.submitTutorialTurn(id, text);
+      const response = await api.submitTutorialTurn(id, text);
       setTurns((prev) => {
-        const exists = prev.some((t) => t.id === agentTurn.id);
-        return exists ? prev : [...prev, agentTurn];
+        // Replace optimistic turn with real user turn, add agent turn if present
+        const withoutOptimistic = prev.filter((t) => t.id !== optimisticId);
+        const newTurns = [response.user_turn];
+        if (response.agent_turn) {
+          newTurns.push(response.agent_turn);
+        }
+        // Only add turns that don't already exist
+        const filtered = newTurns.filter(
+          (t) => !withoutOptimistic.some((existing) => existing.id === t.id),
+        );
+        return [...withoutOptimistic, ...filtered];
       });
-      composerRef.current.value = "";
     } catch (e) {
+      // Remove optimistic turn on error
+      setTurns((prev) => prev.filter((t) => t.id !== optimisticId));
       setTurnError(e instanceof ApiRequestError ? e.message : String(e));
     } finally {
       setSubmittingTurn(false);
@@ -640,11 +676,7 @@ export default function TutorialSessionRunner() {
         </Text>
       )}
 
-      <Box
-        display={{ md: "flex" }}
-        gap={6}
-        alignItems="flex-start"
-      >
+      <Box display={{ md: "flex" }} gap={6} alignItems="flex-start">
         {/* B. Conversation panel (primary) */}
         <Box flex={1} minW={0}>
           <Heading size="sm" mb={3}>
@@ -667,9 +699,7 @@ export default function TutorialSessionRunner() {
         {/* C. Artifact panel (side) */}
         <Box w={{ base: "full", md: "340px" }} flexShrink={0}>
           <HStack mb={3} justify="space-between">
-            <Heading size="sm">
-              Artifacts ({detail.artifacts.length})
-            </Heading>
+            <Heading size="sm">Artifacts ({detail.artifacts.length})</Heading>
             {!isTerminal && (
               <Button
                 size="sm"

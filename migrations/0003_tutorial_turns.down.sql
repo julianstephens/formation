@@ -1,0 +1,5 @@
+BEGIN;
+
+DROP TABLE IF EXISTS tutorial_turns;
+
+COMMIT;

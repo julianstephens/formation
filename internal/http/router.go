@@ -45,16 +45,17 @@ type TutorialRouteRegistrar interface {
 // Adding a new handler in a later phase only requires extending this struct
 // and wiring the new group below.
 type RouterDeps struct {
-	Config          *config.Config
-	JWKS            *auth.JWKS
-	Logger          *slog.Logger // optional; falls back to slog.Default()
-	Seminars        RouteRegistrar
-	Sessions        SessionRouteRegistrar
-	Events          RouteRegistrar
-	Turns           RouteRegistrar
-	Exports         ExportRouteRegistrar
-	Tutorials       TutorialRouteRegistrar
-	TutorialSessions RouteRegistrar
+	Config                *config.Config
+	JWKS                  *auth.JWKS
+	Logger                *slog.Logger // optional; falls back to slog.Default()
+	Seminars              RouteRegistrar
+	Sessions              SessionRouteRegistrar
+	Events                RouteRegistrar
+	Turns                 RouteRegistrar
+	Exports               ExportRouteRegistrar
+	Tutorials             TutorialRouteRegistrar
+	TutorialSessions      RouteRegistrar
+	TutorialSessionEvents RouteRegistrar
 }
 
 // NewRouter builds and returns the configured Gin engine.
@@ -159,6 +160,12 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 		tutorialSessionsGroup.GET("/:id/artifacts", placeholder("list artifacts"))
 		tutorialSessionsGroup.POST("/:id/artifacts", placeholder("create artifact"))
 		tutorialSessionsGroup.DELETE("/:id/artifacts/:artifactId", placeholder("delete artifact"))
+	}
+	// Tutorial Session SSE stream.
+	if deps.TutorialSessionEvents != nil {
+		deps.TutorialSessionEvents.Register(tutorialSessionsGroup)
+	} else {
+		tutorialSessionsGroup.GET("/:id/events", placeholder("SSE stream"))
 	}
 
 	return r

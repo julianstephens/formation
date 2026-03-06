@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/julianstephens/formation/internal/agent"
 	"github.com/julianstephens/formation/internal/domain"
+	"github.com/julianstephens/formation/internal/observability"
 	"github.com/julianstephens/formation/internal/repo"
+	"github.com/julianstephens/formation/internal/sse"
 )
 
 // validDifficulties is the exhaustive set of allowed tutorial difficulty levels.
@@ -39,7 +42,11 @@ type CreateTutorialParams struct {
 }
 
 // CreateTutorial validates params and persists a new tutorial owned by ownerSub.
-func (s *TutorialService) CreateTutorial(ctx context.Context, ownerSub string, p CreateTutorialParams) (*domain.Tutorial, error) {
+func (s *TutorialService) CreateTutorial(
+	ctx context.Context,
+	ownerSub string,
+	p CreateTutorialParams,
+) (*domain.Tutorial, error) {
 	if strings.TrimSpace(p.Title) == "" {
 		return nil, &ValidationError{Field: "title", Message: "must not be blank"}
 	}
@@ -98,7 +105,11 @@ type UpdateTutorialParams struct {
 }
 
 // UpdateTutorial applies a partial update to the tutorial and returns the updated record.
-func (s *TutorialService) UpdateTutorial(ctx context.Context, id, ownerSub string, p UpdateTutorialParams) (*domain.Tutorial, error) {
+func (s *TutorialService) UpdateTutorial(
+	ctx context.Context,
+	id, ownerSub string,
+	p UpdateTutorialParams,
+) (*domain.Tutorial, error) {
 	if p.Difficulty != nil && !validDifficulties[*p.Difficulty] {
 		return nil, &ValidationError{Field: "difficulty", Message: "must be 'beginner', 'intermediate', or 'advanced'"}
 	}
@@ -145,14 +156,21 @@ func NewTutorialSessionService(r *repo.TutorialRepo) *TutorialSessionService {
 func (s *TutorialSessionService) CreateTutorialSession(
 	ctx context.Context,
 	ownerSub, tutorialID string,
+	kind domain.TutorialSessionKind,
 ) (*domain.TutorialSession, error) {
 	// Verify tutorial ownership.
 	if _, err := s.tutorials.GetTutorialByID(ctx, tutorialID, ownerSub); err != nil {
 		return nil, wrapNotFound(err, "tutorial", tutorialID)
 	}
 
+	// Validate kind if provided (empty is allowed for backward compatibility).
+	if kind != "" && !domain.ValidTutorialSessionKind(kind) {
+		return nil, &ValidationError{Field: "kind", Message: "must be 'diagnostic' or 'extended'"}
+	}
+
 	sess := domain.TutorialSession{
 		TutorialID: tutorialID,
+		Kind:       kind,
 	}
 	created, err := s.sessions.CreateSession(ctx, ownerSub, sess)
 	if err != nil {
@@ -163,14 +181,18 @@ func (s *TutorialSessionService) CreateTutorialSession(
 
 // ── Session Get ────────────────────────────────────────────────────────────────
 
-// TutorialSessionDetail wraps a session with its artifacts.
+// TutorialSessionDetail wraps a session with its artifacts and turns.
 type TutorialSessionDetail struct {
 	Session   *domain.TutorialSession
 	Artifacts []domain.Artifact
+	Turns     []domain.TutorialTurn
 }
 
-// GetTutorialSession returns the session and its artifacts if owned by ownerSub.
-func (s *TutorialSessionService) GetTutorialSession(ctx context.Context, id, ownerSub string) (*TutorialSessionDetail, error) {
+// GetTutorialSession returns the session, its artifacts, and turns if owned by ownerSub.
+func (s *TutorialSessionService) GetTutorialSession(
+	ctx context.Context,
+	id, ownerSub string,
+) (*TutorialSessionDetail, error) {
 	sess, err := s.sessions.GetSessionByID(ctx, id, ownerSub)
 	if err != nil {
 		return nil, wrapNotFound(err, "tutorial_session", id)
@@ -181,14 +203,22 @@ func (s *TutorialSessionService) GetTutorialSession(ctx context.Context, id, own
 		return nil, fmt.Errorf("get session artifacts: %w", err)
 	}
 
-	return &TutorialSessionDetail{Session: sess, Artifacts: artifacts}, nil
+	turns, err := s.sessions.ListTutorialTurns(ctx, id, ownerSub)
+	if err != nil {
+		return nil, fmt.Errorf("get session turns: %w", err)
+	}
+
+	return &TutorialSessionDetail{Session: sess, Artifacts: artifacts, Turns: turns}, nil
 }
 
 // ── Session List ───────────────────────────────────────────────────────────────
 
 // ListTutorialSessions returns all sessions for a tutorial in
 // reverse-chronological order.
-func (s *TutorialSessionService) ListTutorialSessions(ctx context.Context, tutorialID, ownerSub string) ([]domain.TutorialSession, error) {
+func (s *TutorialSessionService) ListTutorialSessions(
+	ctx context.Context,
+	tutorialID, ownerSub string,
+) ([]domain.TutorialSession, error) {
 	// Verify tutorial ownership.
 	if _, err := s.tutorials.GetTutorialByID(ctx, tutorialID, ownerSub); err != nil {
 		return nil, wrapNotFound(err, "tutorial", tutorialID)
@@ -205,7 +235,10 @@ func (s *TutorialSessionService) ListTutorialSessions(ctx context.Context, tutor
 
 // CompleteTutorialSession transitions an in-progress session to complete.
 // Returns ErrSessionTerminalError if the session is already terminal.
-func (s *TutorialSessionService) CompleteTutorialSession(ctx context.Context, id, ownerSub, notes string) (*domain.TutorialSession, error) {
+func (s *TutorialSessionService) CompleteTutorialSession(
+	ctx context.Context,
+	id, ownerSub, notes string,
+) (*domain.TutorialSession, error) {
 	existing, err := s.sessions.GetSessionByID(ctx, id, ownerSub)
 	if err != nil {
 		return nil, wrapNotFound(err, "tutorial_session", id)
@@ -225,7 +258,10 @@ func (s *TutorialSessionService) CompleteTutorialSession(ctx context.Context, id
 
 // AbandonTutorialSession transitions an in-progress session to abandoned.
 // Returns ErrSessionTerminalError if the session is already terminal.
-func (s *TutorialSessionService) AbandonTutorialSession(ctx context.Context, id, ownerSub string) (*domain.TutorialSession, error) {
+func (s *TutorialSessionService) AbandonTutorialSession(
+	ctx context.Context,
+	id, ownerSub string,
+) (*domain.TutorialSession, error) {
 	existing, err := s.sessions.GetSessionByID(ctx, id, ownerSub)
 	if err != nil {
 		return nil, wrapNotFound(err, "tutorial_session", id)
@@ -279,7 +315,10 @@ func (s *ArtifactService) CreateArtifact(
 	p CreateArtifactParams,
 ) (*domain.Artifact, error) {
 	if !domain.ValidArtifactKind(p.Kind) {
-		return nil, &ValidationError{Field: "kind", Message: "must be 'summary', 'notes', 'problem_set', or 'diagnostic'"}
+		return nil, &ValidationError{
+			Field:   "kind",
+			Message: "must be 'summary', 'notes', 'problem_set', or 'diagnostic'",
+		}
 	}
 	if strings.TrimSpace(p.Title) == "" {
 		return nil, &ValidationError{Field: "title", Message: "must not be blank"}
@@ -341,4 +380,205 @@ func (s *ArtifactService) DeleteArtifact(ctx context.Context, id, ownerSub strin
 		return wrapNotFound(err, "artifact", id)
 	}
 	return nil
+}
+
+// ── TutorialTurnService ───────────────────────────────────────────────────────
+
+// TutorialTurnService implements all business operations for tutorial session turns.
+type TutorialTurnService struct {
+	repo      *repo.TutorialRepo
+	assembler *agent.TutorialAssembler
+	hub       *sse.Hub
+	agent     agent.Provider // may be nil when no LLM is configured
+}
+
+// NewTutorialTurnService constructs a TutorialTurnService backed by the given repository.
+// provider may be nil; in that case the pipeline persists the user turn but skips agent response.
+func NewTutorialTurnService(
+	r *repo.TutorialRepo,
+	assembler *agent.TutorialAssembler,
+	hub *sse.Hub,
+	provider agent.Provider,
+) *TutorialTurnService {
+	return &TutorialTurnService{
+		repo:      r,
+		assembler: assembler,
+		hub:       hub,
+		agent:     provider,
+	}
+}
+
+// SubmitTutorialTurnResult holds the output from submitting a tutorial turn.
+type SubmitTutorialTurnResult struct {
+	UserTurn  *domain.TutorialTurn
+	AgentTurn *domain.TutorialTurn
+}
+
+// SubmitTutorialTurn creates a user turn and may generate an agent response in the future.
+// For now, this is a simplified version that only stores the user turn.
+func (s *TutorialTurnService) SubmitTutorialTurn(
+	ctx context.Context,
+	sessionID, ownerSub, text string,
+) (*SubmitTutorialTurnResult, error) {
+	// Validate input.
+	if strings.TrimSpace(text) == "" {
+		return nil, &ValidationError{Field: "text", Message: "must not be blank"}
+	}
+
+	// Verify session exists and is owned by the user.
+	sess, err := s.repo.GetSessionByID(ctx, sessionID, ownerSub)
+	if err != nil {
+		return nil, wrapNotFound(err, "tutorial_session", sessionID)
+	}
+
+	// Don't allow turns on terminal sessions.
+	if sess.IsTerminal() {
+		return nil, &ErrSessionTerminalError{Status: domain.SessionStatus(sess.Status)}
+	}
+
+	// Create the user turn.
+	userTurn := domain.TutorialTurn{
+		SessionID: sessionID,
+		Speaker:   "user",
+		Text:      text,
+	}
+	created, err := s.repo.CreateTutorialTurn(ctx, sessionID, ownerSub, userTurn)
+	if err != nil {
+		return nil, fmt.Errorf("create user turn: %w", err)
+	}
+
+	// Emit turn_added SSE for user turn.
+	s.hub.PublishTutorialTurnAdded(created)
+
+	result := &SubmitTutorialTurnResult{
+		UserTurn:  created,
+		AgentTurn: nil,
+	}
+
+	// If no agent is configured, return just the user turn.
+	if s.agent == nil || s.assembler == nil {
+		return result, nil
+	}
+
+	// Load tutorial and artifacts for context.
+	tutorial, err := s.repo.GetTutorialByID(ctx, sess.TutorialID, ownerSub)
+	if err != nil {
+		logger := observability.LoggerFromContext(ctx)
+		logger.Error("failed to load tutorial for prompt assembly",
+			"session_id", sessionID,
+			"tutorial_id", sess.TutorialID,
+			"error", err.Error(),
+		)
+		return result, nil // Return user turn even if we can't load tutorial
+	}
+
+	// Load prior turns for conversation history.
+	priorTurns, err := s.repo.ListTutorialTurns(ctx, sessionID, ownerSub)
+	if err != nil {
+		logger := observability.LoggerFromContext(ctx)
+		logger.Error("failed to load prior turns for prompt assembly",
+			"session_id", sessionID,
+			"error", err.Error(),
+		)
+		return result, nil
+	}
+
+	// Load artifacts to include in the prompt.
+	artifacts, err := s.repo.ListArtifactsBySessionID(ctx, sessionID, ownerSub)
+	if err != nil {
+		logger := observability.LoggerFromContext(ctx)
+		logger.Error("failed to load artifacts for prompt assembly",
+			"session_id", sessionID,
+			"error", err.Error(),
+		)
+		artifacts = []domain.Artifact{} // Continue with empty artifacts
+	}
+
+	// Format artifacts for the prompt.
+	artifactsText := formatArtifacts(artifacts)
+
+	// Assemble the prompt.
+	messages, err := s.assembler.AssembleTutorial(agent.TutorialAssembleParams{
+		TutorialTitle:      tutorial.Title,
+		SessionKind:        "diagnostic",  // TODO: determine from session metadata
+		TaskMode:           "review_only", // TODO: determine from session state
+		WeekOf:             sess.StartedAt.Format("2006-01-02"),
+		Artifacts:          artifactsText,
+		PriorDiagnostics:   "", // TODO: load from previous sessions
+		PreviousProblemSet: "", // TODO: load from previous sessions
+		ProblemSetResponse: "", // TODO: load from artifacts
+		Turns:              priorTurns,
+	})
+	if err != nil {
+		logger := observability.LoggerFromContext(ctx)
+		logger.Error("failed to assemble tutorial prompt",
+			"session_id", sessionID,
+			"error", err.Error(),
+		)
+		return result, nil
+	}
+
+	// Call the agent.
+	agentText, err := s.agent.Complete(ctx, messages)
+	if err != nil {
+		logger := observability.LoggerFromContext(ctx)
+		logger.Error("agent call failed",
+			"session_id", sessionID,
+			"error", err.Error(),
+		)
+		return result, nil // Return user turn even if agent call fails
+	}
+
+	// Create the agent turn.
+	agentTurn := domain.TutorialTurn{
+		SessionID: sessionID,
+		Speaker:   "agent",
+		Text:      agentText,
+	}
+	agentCreated, err := s.repo.CreateTutorialTurn(ctx, sessionID, ownerSub, agentTurn)
+	if err != nil {
+		return result, fmt.Errorf("create agent turn: %w", err)
+	}
+
+	// Emit turn_added SSE for agent turn.
+	s.hub.PublishTutorialTurnAdded(agentCreated)
+
+	result.AgentTurn = agentCreated
+	return result, nil
+}
+
+// ListTutorialTurns returns all turns for a session in chronological order.
+func (s *TutorialTurnService) ListTutorialTurns(
+	ctx context.Context,
+	sessionID, ownerSub string,
+) ([]domain.TutorialTurn, error) {
+	// Verify session ownership.
+	if _, err := s.repo.GetSessionByID(ctx, sessionID, ownerSub); err != nil {
+		return nil, wrapNotFound(err, "tutorial_session", sessionID)
+	}
+
+	turns, err := s.repo.ListTutorialTurns(ctx, sessionID, ownerSub)
+	if err != nil {
+		return nil, fmt.Errorf("list tutorial turns: %w", err)
+	}
+	return turns, nil
+}
+
+// ── helpers ────────────────────────────────────────────────────────────────────
+
+// formatArtifacts converts a list of artifacts into a formatted string for the prompt.
+func formatArtifacts(artifacts []domain.Artifact) string {
+	if len(artifacts) == 0 {
+		return "(No artifacts submitted yet)"
+	}
+
+	var sb strings.Builder
+	for i, art := range artifacts {
+		if i > 0 {
+			sb.WriteString("\n\n")
+		}
+		sb.WriteString(fmt.Sprintf("--- %s: %s ---\n", art.Kind, art.Title))
+		sb.WriteString(art.Content)
+	}
+	return sb.String()
 }
