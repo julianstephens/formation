@@ -133,19 +133,22 @@ export function createApiClient(getToken: () => Promise<string>) {
       post<Turn>(`/sessions/${sessionId}/turns`, { text }),
 
     // ── Exports ───────────────────────────────────────────────────────────────
-    exportSeminarUrl: (seminarId: string, format: "json" | "md" = "json") =>
-      `${BASE_URL}/seminars/${seminarId}/export?format=${format}`,
+    exportSeminar: (seminarId: string, format: "json" | "md" = "json") =>
+      get<{ url: string }>(`/seminars/${seminarId}/export?format=${format}`),
 
-    exportSessionUrl: (sessionId: string, format: "json" | "md" = "json") =>
-      `${BASE_URL}/sessions/${sessionId}/export?format=${format}`,
+    exportSession: (sessionId: string, format: "json" | "md" = "json") =>
+      get<{ url: string }>(`/sessions/${sessionId}/export?format=${format}`),
 
-    exportTutorialUrl: (tutorialId: string, format: "json" | "md" = "json") =>
-      `${BASE_URL}/tutorials/${tutorialId}/export?format=${format}`,
+    exportTutorial: (tutorialId: string, format: "json" | "md" = "json") =>
+      get<{ url: string }>(`/tutorials/${tutorialId}/export?format=${format}`),
 
-    exportTutorialSessionUrl: (
+    exportTutorialSession: (
       sessionId: string,
       format: "json" | "md" = "json",
-    ) => `${BASE_URL}/tutorial-sessions/${sessionId}/export?format=${format}`,
+    ) =>
+      get<{ url: string }>(
+        `/tutorial-sessions/${sessionId}/export?format=${format}`,
+      ),
 
     // ── Tutorials ─────────────────────────────────────────────────────────────
     listTutorials: () => get<Tutorial[]>("/tutorials"),

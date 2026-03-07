@@ -20,6 +20,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useState } from "react";
+import { LuArrowLeft } from "react-icons/lu";
 import { useNavigate, useParams } from "react-router-dom";
 
 type Format = "json" | "md";
@@ -56,26 +57,23 @@ export default function Export({ resourceType }: ExportPageProps) {
     if (!id) return;
     setError(null);
     try {
-      let url: string;
+      let result: { url: string };
       switch (resourceType) {
         case "seminar":
-          url = api.exportSeminarUrl(id, format);
+          result = await api.exportSeminar(id, format);
           break;
         case "session":
-          url = api.exportSessionUrl(id, format);
+          result = await api.exportSession(id, format);
           break;
         case "tutorial":
-          url = api.exportTutorialUrl(id, format);
+          result = await api.exportTutorial(id, format);
           break;
         case "tutorial_session":
-          url = api.exportTutorialSessionUrl(id, format);
+          result = await api.exportTutorialSession(id, format);
           break;
       }
 
-      // Simple approach: open the URL in a new tab. The backend's CORS config
-      // in gin allows credentials. For a polished flow we'd overlay a download
-      // link so the user sees a save dialog. For now we navigate directly.
-      window.open(url, "_blank");
+      window.open(result.url, "_blank");
     } catch (e) {
       setError(String(e));
     }
@@ -113,8 +111,15 @@ export default function Export({ resourceType }: ExportPageProps) {
     <Box maxW="lg" mx="auto" w="full">
       <HStack mb={6} justify="space-between">
         <Heading size="lg">Export {getTitle()}</Heading>
-        <Button size="sm" variant="ghost" onClick={() => navigate(backPath)}>
-          ← Back
+        <Button
+          className="grey"
+          alignItems="center"
+          size="sm"
+          variant="ghost"
+          onClick={() => navigate(backPath)}
+        >
+          <LuArrowLeft />
+          Back
         </Button>
       </HStack>
 

@@ -35,6 +35,7 @@ import (
 	"github.com/julianstephens/formation/internal/scheduler"
 	"github.com/julianstephens/formation/internal/service"
 	"github.com/julianstephens/formation/internal/sse"
+	"github.com/julianstephens/formation/internal/storage"
 )
 
 // App is the top-level application container.
@@ -137,6 +138,7 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 		hub,
 		openaiProvider,
 		diagnosticLedgerSvc,
+		cfg.EnableStreaming,
 	)
 	tutorialHandler := tutorialHandlers.NewTutorialHandler(tutorialSvc, tutorialSessionSvc)
 	tutorialSessionHandler := tutorialHandlers.NewTutorialSessionHandler(
@@ -148,7 +150,8 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 	tutorialDiagnosticsHandler := tutorialHandlers.NewTutorialDiagnosticsHandler(diagnosticLedgerSvc, tutRepo)
 
 	// 10. Create the export service and handler using module repos.
-	exportSvc := service.NewExportService(semRepo, sessRepo, tutRepo)
+	exportSvc := service.NewExportService(semRepo, sessRepo, tutRepo).
+		WithS3(storage.NewS3Client(cfg), logger)
 	exportHandler := handlers.NewExportHandler(exportSvc)
 
 	// 9. Build HTTP server.
@@ -171,7 +174,7 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 		Addr:         fmt.Sprintf(":%s", cfg.Port),
 		Handler:      router,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 60 * time.Second, // longer to accommodate SSE streams
+		WriteTimeout: 0, // disable write timeout to allow indefinite SSE streams
 		IdleTimeout:  120 * time.Second,
 	}
 
