@@ -77,7 +77,12 @@ func (h *TutorialSessionEventsHandler) Stream(c *gin.Context) {
 	// Flush headers immediately so the browser receives the streaming response.
 	flusher, hasFlusher := c.Writer.(http.Flusher)
 	if !hasFlusher {
-		apphttp.Fail(c, http.StatusInternalServerError, "no_flusher", "streaming not supported")
+		apphttp.Fail(
+			c,
+			http.StatusInternalServerError,
+			"no_flusher",
+			"Server-sent events are not supported by this server",
+		)
 		return
 	}
 	c.Status(http.StatusOK)

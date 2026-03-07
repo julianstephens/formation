@@ -610,13 +610,29 @@ func (r *TutorialRepo) CreateProblemSet(
 }
 
 // GetProblemSetByWeek returns the problem set for a specific tutorial and week.
+// GetProblemSetByID returns a problem set by its ID.
+func (r *TutorialRepo) GetProblemSetByID(
+	ctx context.Context,
+	id, ownerSub string,
+) (*domain.ProblemSet, error) {
+	const q = `
+		SELECT id, tutorial_id, owner_sub, week_of,
+		       COALESCE(assigned_from_session_id::text, ''), status, tasks,
+		       COALESCE(review_notes, ''), created_at, updated_at
+		FROM problem_sets
+		WHERE id = $1 AND owner_sub = $2`
+
+	row := r.Pool.QueryRow(ctx, q, id, ownerSub)
+	return scanProblemSet(row)
+}
+
 func (r *TutorialRepo) GetProblemSetByWeek(
 	ctx context.Context,
 	tutorialID, ownerSub, weekOf string,
 ) (*domain.ProblemSet, error) {
 	const q = `
 		SELECT id, tutorial_id, owner_sub, week_of,
-		       COALESCE(assigned_from_session_id, ''), status, tasks,
+		       COALESCE(assigned_from_session_id::text, ''), status, tasks,
 		       COALESCE(review_notes, ''), created_at, updated_at
 		FROM problem_sets
 		WHERE tutorial_id = $1 AND owner_sub = $2 AND week_of = $3`

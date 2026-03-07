@@ -8,11 +8,29 @@ const audience = import.meta.env.VITE_AUTH0_AUDIENCE as string;
  * configured API audience. Intended to be passed into the API client.
  */
 export function useAccessToken(): () => Promise<string> {
-  const { getAccessTokenSilently } = useAuth0();
-  return useCallback(
-    () => getAccessTokenSilently({ authorizationParams: { audience } }),
-    [getAccessTokenSilently],
-  );
+  const { getAccessTokenSilently, loginWithRedirect } = useAuth0();
+  return useCallback(async () => {
+    try {
+      return await getAccessTokenSilently({
+        authorizationParams: { audience },
+      });
+    } catch (error: unknown) {
+      // If refresh token is missing or expired, redirect to login
+      if (
+        error instanceof Error &&
+        (error.message.includes("Missing Refresh Token") ||
+          error.message.includes("Login required"))
+      ) {
+        await loginWithRedirect({
+          appState: { returnTo: window.location.pathname },
+        });
+        // This will never resolve because we're redirecting
+        return new Promise<string>(() => {});
+      }
+      // Re-throw other errors
+      throw error;
+    }
+  }, [getAccessTokenSilently, loginWithRedirect]);
 }
 
 /**

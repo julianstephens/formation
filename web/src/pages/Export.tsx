@@ -24,7 +24,12 @@ import { LuArrowLeft } from "react-icons/lu";
 import { useNavigate, useParams } from "react-router-dom";
 
 type Format = "json" | "md";
-type ResourceType = "seminar" | "session" | "tutorial" | "tutorial_session";
+type ResourceType =
+  | "seminar"
+  | "session"
+  | "tutorial"
+  | "tutorial_session"
+  | "problem_set";
 
 interface ExportPageProps {
   /** Controls whether the page exports a seminar, session, tutorial, or tutorial session. */
@@ -48,6 +53,8 @@ export default function Export({ resourceType }: ExportPageProps) {
         return `tutorial-${id ?? "export"}.${format}`;
       case "tutorial_session":
         return `tutorial-session-${id ?? "export"}.${format}`;
+      case "problem_set":
+        return `problem-set-${id ?? "export"}.${format}`;
     }
   };
 
@@ -56,6 +63,7 @@ export default function Export({ resourceType }: ExportPageProps) {
   const handleDownload = async () => {
     if (!id) return;
     setError(null);
+    console.log(`[Export] Attempting to export ${resourceType} with ID:`, id);
     try {
       let result: { url: string };
       switch (resourceType) {
@@ -71,11 +79,20 @@ export default function Export({ resourceType }: ExportPageProps) {
         case "tutorial_session":
           result = await api.exportTutorialSession(id, format);
           break;
+        case "problem_set":
+          result = await api.exportProblemSet(id, format);
+          break;
       }
 
+      console.log(`[Export] Success! Opening URL:`, result.url);
       window.open(result.url, "_blank");
     } catch (e) {
-      setError(String(e));
+      console.error("Export error:", e);
+      if (e instanceof Error) {
+        setError(`Export failed: ${e.message}`);
+      } else {
+        setError(`Export failed: ${String(e)}`);
+      }
     }
   };
 
@@ -89,6 +106,8 @@ export default function Export({ resourceType }: ExportPageProps) {
         return "Tutorial";
       case "tutorial_session":
         return "Tutorial Session";
+      case "problem_set":
+        return "Problem Set";
     }
   };
 
@@ -102,10 +121,21 @@ export default function Export({ resourceType }: ExportPageProps) {
         return `/tutorials/${id}`;
       case "tutorial_session":
         return `/tutorial-sessions/${id}`;
+      case "problem_set":
+        // Problem sets are nested, use browser back navigation
+        return null;
     }
   };
 
   const backPath = getBackPath();
+
+  const handleBack = () => {
+    if (backPath) {
+      navigate(backPath);
+    } else {
+      window.history.back();
+    }
+  };
 
   return (
     <Box maxW="lg" mx="auto" w="full">
@@ -116,7 +146,7 @@ export default function Export({ resourceType }: ExportPageProps) {
           alignItems="center"
           size="sm"
           variant="ghost"
-          onClick={() => navigate(backPath)}
+          onClick={handleBack}
         >
           <LuArrowLeft />
           Back

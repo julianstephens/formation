@@ -60,7 +60,13 @@ func (h *TutorialDiagnosticsHandler) ListDiagnostics(c *gin.Context) {
 		ownerSub,
 	)
 	if err != nil {
-		apphttp.Fail(c, http.StatusInternalServerError, "internal_error", "failed to list diagnostics")
+		_ = c.Error(err)
+		apphttp.Fail(
+			c,
+			http.StatusInternalServerError,
+			"internal_error",
+			"Failed to retrieve diagnostic entries. Please try again later",
+		)
 		return
 	}
 
@@ -101,7 +107,13 @@ func (h *TutorialDiagnosticsHandler) GetDiagnosticSummary(c *gin.Context) {
 		weeks,
 	)
 	if err != nil {
-		apphttp.Fail(c, http.StatusInternalServerError, "internal_error", "failed to build pattern summary")
+		_ = c.Error(err)
+		apphttp.Fail(
+			c,
+			http.StatusInternalServerError,
+			"internal_error",
+			"Failed to generate pattern summary. Please try again later",
+		)
 		return
 	}
 

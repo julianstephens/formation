@@ -69,7 +69,13 @@ func (h *ExportHandler) ExportSeminar(c *gin.Context) {
 	default:
 		body, err := export.RenderSeminarJSON(result)
 		if err != nil {
-			apphttp.Fail(c, http.StatusInternalServerError, "render_error", "failed to render JSON export")
+			_ = c.Error(err)
+			apphttp.Fail(
+				c,
+				http.StatusInternalServerError,
+				"render_error",
+				"Failed to generate JSON export. Please try again later",
+			)
 			return
 		}
 		c.Header("Content-Disposition",

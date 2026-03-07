@@ -21,3 +21,8 @@ func RenderTutorialJSON(e *TutorialExport) ([]byte, error) {
 func RenderTutorialSessionJSON(e *TutorialSessionExport) ([]byte, error) {
 	return json.MarshalIndent(e, "", "  ")
 }
+
+// RenderProblemSetJSON marshals a problem set export to pretty-printed JSON.
+func RenderProblemSetJSON(e *ProblemSetExport) ([]byte, error) {
+	return json.MarshalIndent(e, "", "  ")
+}

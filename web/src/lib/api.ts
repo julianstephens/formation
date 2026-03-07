@@ -151,6 +151,11 @@ export function createApiClient(getToken: () => Promise<string>) {
         `/tutorial-sessions/${sessionId}/export?format=${format}`,
       ),
 
+    exportProblemSet: (problemSetId: string, format: "json" | "md" = "json") =>
+      get<{ url: string }>(
+        `/problem-sets/${problemSetId}/export?format=${format}`,
+      ),
+
     // ── Tutorials ─────────────────────────────────────────────────────────────
     listTutorials: () => get<Tutorial[]>("/tutorials"),
 

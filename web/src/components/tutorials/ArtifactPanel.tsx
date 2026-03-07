@@ -36,7 +36,7 @@ const ArtifactList = ({
 }) => {
   if (artifacts.length === 0) {
     return (
-      <Text color="gray.500" fontSize="sm">
+      <Text mt="20" mx="auto" color="gray.500" fontSize="sm">
         No artifacts yet.
       </Text>
     );

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,6 +10,7 @@ import (
 	"github.com/julianstephens/formation/internal/domain"
 	apphttp "github.com/julianstephens/formation/internal/http"
 	"github.com/julianstephens/formation/internal/modules/seminar/service"
+	"github.com/julianstephens/formation/internal/observability"
 )
 
 // SessionHandler exposes session-related routes.
@@ -52,18 +54,25 @@ func (h *SessionHandler) Register(rg *gin.RouterGroup) {
 //	@Success  201   {object}  apphttp.SessionResponse
 //	@Router   /v1/seminars/{id}/sessions [post]
 func (h *SessionHandler) Create(c *gin.Context) {
+	logger := observability.FromGinCtx(c)
 	ownerSub, err := auth.MustOwnerSub(c)
 	if err != nil {
 		return
 	}
 
+	seminarID := c.Param("id")
+	logger.Debug("creating session", slog.String("seminar_id", seminarID))
+
 	var req apphttp.CreateSessionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		apphttp.Fail(c, http.StatusBadRequest, "invalid_request", err.Error())
+		logger.Debug("invalid request body", slog.String("error", err.Error()))
+		apphttp.FailDetails(c, http.StatusBadRequest, "invalid_request",
+			"The request body is invalid or missing required fields",
+			gin.H{"error": err.Error()})
 		return
 	}
 
-	sess, err := h.svc.Create(c.Request.Context(), ownerSub, c.Param("id"), service.CreateSessionParams{
+	sess, err := h.svc.Create(c.Request.Context(), ownerSub, seminarID, service.CreateSessionParams{
 		SectionLabel: req.SectionLabel,
 		Mode:         req.Mode,
 		ExcerptText:  req.ExcerptText,
@@ -74,6 +83,7 @@ func (h *SessionHandler) Create(c *gin.Context) {
 		return
 	}
 
+	logger.Debug("session created successfully", slog.String("session_id", sess.ID))
 	c.JSON(http.StatusCreated, toSessionResponse(*sess))
 }
 
@@ -135,12 +145,16 @@ func (h *SessionHandler) Delete(c *gin.Context) {
 //	@Success  200  {object}  apphttp.SessionDetailResponse
 //	@Router   /v1/sessions/{id} [get]
 func (h *SessionHandler) Get(c *gin.Context) {
+	logger := observability.FromGinCtx(c)
 	ownerSub, err := auth.MustOwnerSub(c)
 	if err != nil {
 		return
 	}
 
-	detail, err := h.svc.Get(c.Request.Context(), c.Param("id"), ownerSub)
+	sessionID := c.Param("id")
+	logger.Debug("fetching session", slog.String("session_id", sessionID))
+
+	detail, err := h.svc.Get(c.Request.Context(), sessionID, ownerSub)
 	if err != nil {
 		handleSessionServiceError(c, err)
 		return
@@ -255,22 +269,31 @@ func toSessionDetailResponse(d *service.SessionDetail) apphttp.SessionDetailResp
 func handleSessionServiceError(c *gin.Context, err error) {
 	var terminal *service.ErrSessionTerminalError
 	if errors.As(err, &terminal) {
-		apphttp.Fail(c, http.StatusConflict, "session_terminal",
-			err.Error())
+		apphttp.FailDetails(c, http.StatusConflict, "session_terminal",
+			"This session has ended and no longer accepts new turns",
+			gin.H{
+				"status": terminal.Status,
+			})
 		return
 	}
 
 	var phaseExpired *service.ErrPhaseExpiredError
 	if errors.As(err, &phaseExpired) {
-		apphttp.Fail(c, http.StatusUnprocessableEntity, "phase_expired",
-			err.Error())
+		apphttp.FailDetails(c, http.StatusUnprocessableEntity, "phase_expired",
+			"The time limit for this phase has been exceeded",
+			gin.H{
+				"phase": phaseExpired.Phase,
+			})
 		return
 	}
 
 	var phaseNoTurns *service.ErrPhaseNoTurnsError
 	if errors.As(err, &phaseNoTurns) {
-		apphttp.Fail(c, http.StatusUnprocessableEntity, "phase_no_turns",
-			err.Error())
+		apphttp.FailDetails(c, http.StatusUnprocessableEntity, "phase_no_turns",
+			"This session phase does not accept user-submitted turns",
+			gin.H{
+				"phase": phaseNoTurns.Phase,
+			})
 		return
 	}
 

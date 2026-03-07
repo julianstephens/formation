@@ -46,7 +46,9 @@ func (h *TurnHandler) SubmitTurn(c *gin.Context) {
 
 	var req apphttp.SubmitTurnRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		apphttp.Fail(c, http.StatusBadRequest, "invalid_request", err.Error())
+		apphttp.FailDetails(c, http.StatusBadRequest, "invalid_request",
+			"The request body is invalid or missing required fields",
+			gin.H{"error": err.Error()})
 		return
 	}
 

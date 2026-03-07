@@ -1,3 +1,4 @@
+import { ExportButton } from "@/components/Button";
 import { useApi } from "@/lib/ApiContext";
 import type { ProblemSet } from "@/lib/types";
 import {
@@ -110,14 +111,17 @@ const ProblemSetDetail = () => {
           <Heading size="lg">
             Problem Set for {new Date(problemSet.week_of).toLocaleDateString()}
           </Heading>
-          <Badge colorPalette={statusColor[problemSet.status] ?? ""}>
-            <Icon
-              w={4}
-              h={4}
-              as={statusIcon[problemSet.status] ?? LuCircleAlert}
-            />
-            {problemSet.status}
-          </Badge>
+          <HStack>
+            <Badge colorPalette={statusColor[problemSet.status] ?? ""}>
+              <Icon
+                w={4}
+                h={4}
+                as={statusIcon[problemSet.status] ?? LuCircleAlert}
+              />
+              {problemSet.status}
+            </Badge>
+            <ExportButton to={`/problem-sets/${problemSet.id}/export`} />
+          </HStack>
         </HStack>
         <HStack color="fg.muted" fontSize="sm">
           <Text>

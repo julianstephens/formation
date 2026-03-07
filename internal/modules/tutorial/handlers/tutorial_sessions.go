@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"errors"
-	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +11,7 @@ import (
 	"github.com/julianstephens/formation/internal/domain"
 	apphttp "github.com/julianstephens/formation/internal/http"
 	"github.com/julianstephens/formation/internal/modules/tutorial/service"
+	"github.com/julianstephens/formation/internal/observability"
 )
 
 // TutorialSessionHandler exposes top-level tutorial session routes.
@@ -62,17 +63,22 @@ func (h *TutorialSessionHandler) Register(rg *gin.RouterGroup) {
 //	@Success  200  {object}  apphttp.TutorialSessionDetailResponse
 //	@Router   /v1/tutorial-sessions/{id} [get]
 func (h *TutorialSessionHandler) Get(c *gin.Context) {
+	logger := observability.FromGinCtx(c)
 	ownerSub, err := auth.MustOwnerSub(c)
 	if err != nil {
 		return
 	}
 
 	sessionID := c.Param("id")
-	_ = c.Error(fmt.Errorf("[TutorialSessionHandler.Get] Fetching session_id=%s owner=%s", sessionID, ownerSub))
+	logger.Debug("fetching tutorial session", slog.String("session_id", sessionID))
 
 	detail, err := h.sessionSvc.GetTutorialSession(c.Request.Context(), sessionID, ownerSub)
 	if err != nil {
-		_ = c.Error(fmt.Errorf("[TutorialSessionHandler.Get] Failed to get session: %w", err))
+		logger.Debug(
+			"failed to get tutorial session",
+			slog.String("session_id", sessionID),
+			slog.String("error", err.Error()),
+		)
 		handleServiceError(c, err)
 		return
 	}
@@ -96,6 +102,7 @@ func (h *TutorialSessionHandler) Get(c *gin.Context) {
 		ps := toProblemSetResponse(*detail.ProblemSet)
 		resp.ProblemSet = &ps
 	}
+	logger.Debug("tutorial session fetched successfully", slog.String("session_id", sessionID))
 	c.JSON(http.StatusOK, resp)
 }
 

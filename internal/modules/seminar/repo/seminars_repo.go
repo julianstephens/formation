@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/julianstephens/formation/internal/domain"
@@ -26,6 +27,11 @@ func NewSeminarRepo(b repo.Base) *SeminarRepo {
 
 // Create inserts a new seminar and returns the fully-populated record.
 func (r *SeminarRepo) Create(ctx context.Context, ownerSub string, s domain.Seminar) (*domain.Seminar, error) {
+	slog.Debug("db: creating seminar",
+		slog.String("owner", ownerSub),
+		slog.String("title", s.Title),
+	)
+
 	const q = `
 		INSERT INTO seminars
 			(owner_sub, title, author, edition_notes, thesis_current, default_mode, default_recon_minutes)
@@ -38,12 +44,20 @@ func (r *SeminarRepo) Create(ctx context.Context, ownerSub string, s domain.Semi
 	row := r.Pool.QueryRow(ctx, q,
 		ownerSub, s.Title, s.Author, s.EditionNotes,
 		s.ThesisCurrent, s.DefaultMode, s.DefaultReconMinutes)
-	return scanSeminar(row)
+	created, err := scanSeminar(row)
+	if err != nil {
+		slog.Error("db: failed to create seminar", slog.String("error", err.Error()))
+		return nil, err
+	}
+	slog.Debug("db: seminar created", slog.String("id", created.ID))
+	return created, nil
 }
 
 // GetByID returns the seminar with the given id, enforcing owner_sub.
 // Returns ErrNotFound if no matching row exists.
 func (r *SeminarRepo) GetByID(ctx context.Context, id, ownerSub string) (*domain.Seminar, error) {
+	slog.Debug("db: fetching seminar", slog.String("id", id), slog.String("owner", ownerSub))
+
 	const q = `
 		SELECT id, owner_sub,
 		       title, COALESCE(author,''), COALESCE(edition_notes,''),
@@ -53,7 +67,17 @@ func (r *SeminarRepo) GetByID(ctx context.Context, id, ownerSub string) (*domain
 		WHERE id = $1 AND owner_sub = $2`
 
 	row := r.Pool.QueryRow(ctx, q, id, ownerSub)
-	return scanSeminar(row)
+	sem, err := scanSeminar(row)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			slog.Debug("db: seminar not found", slog.String("id", id))
+		} else {
+			slog.Error("db: failed to fetch seminar", slog.String("id", id), slog.String("error", err.Error()))
+		}
+		return nil, err
+	}
+	slog.Debug("db: seminar fetched", slog.String("id", id))
+	return sem, nil
 }
 
 // List returns all seminars owned by ownerSub, newest first.
@@ -116,14 +140,19 @@ func (r *SeminarRepo) Update(
 // Delete removes the seminar. Returns ErrNotFound if it does not exist or the
 // caller does not own it.
 func (r *SeminarRepo) Delete(ctx context.Context, id, ownerSub string) error {
+	slog.Debug("db: deleting seminar", slog.String("id", id), slog.String("owner", ownerSub))
+
 	const q = `DELETE FROM seminars WHERE id = $1 AND owner_sub = $2`
 	tag, err := r.Pool.Exec(ctx, q, id, ownerSub)
 	if err != nil {
+		slog.Error("db: failed to delete seminar", slog.String("id", id), slog.String("error", err.Error()))
 		return fmt.Errorf("delete seminar: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
+		slog.Debug("db: seminar not found for deletion", slog.String("id", id))
 		return repo.ErrNotFound
 	}
+	slog.Debug("db: seminar deleted", slog.String("id", id))
 	return nil
 }
 

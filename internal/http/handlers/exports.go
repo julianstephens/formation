@@ -46,6 +46,11 @@ func (h *ExportHandler) RegisterUnderTutorialSessions(rg *gin.RouterGroup) {
 	rg.GET("/:id/export", h.ExportTutorialSession)
 }
 
+// RegisterUnderProblemSets mounts GET /:id/export on the problem-sets router group.
+func (h *ExportHandler) RegisterUnderProblemSets(rg *gin.RouterGroup) {
+	rg.GET("/:id/export", h.ExportProblemSet)
+}
+
 // ── Handlers ───────────────────────────────────────────────────────────────────
 
 // ExportSeminar godoc
@@ -144,6 +149,38 @@ func (h *ExportHandler) ExportTutorialSession(c *gin.Context) {
 	format := c.DefaultQuery("format", "json")
 
 	url, err := h.svc.UploadAndPresignTutorialSession(c.Request.Context(), id, ownerSub, format)
+	if err != nil {
+		writeExportError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"url": url})
+}
+
+// ExportProblemSet godoc
+//
+//	@Summary  Export a problem set
+//	@Tags     exports
+//	@Produce  json
+//	@Param    id      path   string  true   "problem set ID"
+//	@Param    format  query  string  false  "output format: json (default) or md"
+//	@Success  200  {object}  map[string]string
+//	@Router   /v1/problem-sets/{id}/export [get]
+func (h *ExportHandler) ExportProblemSet(c *gin.Context) {
+	ownerSub, err := auth.MustOwnerSub(c)
+	if err != nil {
+		return
+	}
+
+	id := c.Param("id")
+	if id == "" {
+		apphttp.Fail(c, 400, "bad_request", "problem set ID is required")
+		return
+	}
+
+	format := c.DefaultQuery("format", "json")
+
+	url, err := h.svc.UploadAndPresignProblemSet(c.Request.Context(), id, ownerSub, format)
 	if err != nil {
 		writeExportError(c, err)
 		return

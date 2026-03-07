@@ -7,6 +7,7 @@ package agent
 import (
 	"embed"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -132,8 +133,15 @@ type AssembleParams struct {
 // A missing phase addendum (e.g. residue_required, done) is silently omitted
 // so the pipeline does not hard-fail for terminal phases.
 func (a *Assembler) Assemble(p AssembleParams) ([]Message, error) {
+	slog.Debug("assembling prompt",
+		slog.String("mode", p.Mode),
+		slog.String("phase", string(p.Phase)),
+		slog.Int("turn_count", len(p.Turns)),
+	)
+
 	modeText, ok := a.canonical.ModeAddenda[p.Mode]
 	if !ok {
+		slog.Error("invalid mode for prompt assembly", slog.String("mode", p.Mode))
 		return nil, fmt.Errorf("no mode_addendum for mode %q in canonical.yml", p.Mode)
 	}
 
@@ -162,6 +170,7 @@ func (a *Assembler) Assemble(p AssembleParams) ([]Message, error) {
 		})
 	}
 
+	slog.Debug("prompt assembled", slog.Int("message_count", len(messages)))
 	return messages, nil
 }
 
@@ -179,6 +188,12 @@ type RewriteParams struct {
 // rewrite call. The caller should pass this to the agent client and replace the
 // original output with the response.
 func (a *Assembler) AssembleRewrite(p RewriteParams) []Message {
+	slog.Debug("assembling rewrite prompt",
+		slog.String("phase", p.ActivePhase),
+		slog.String("mode", p.ActiveMode),
+		slog.Int("violation_count", len(p.ViolationList)),
+	)
+
 	violations := strings.Join(p.ViolationList, "\n- ")
 	if violations != "" {
 		violations = "- " + violations
@@ -191,6 +206,7 @@ func (a *Assembler) AssembleRewrite(p RewriteParams) []Message {
 		"{{violation_list}}", violations,
 	).Replace(a.rewrite.RewriteUserTemplate)
 
+	slog.Debug("rewrite prompt assembled")
 	return []Message{
 		{Role: "system", Content: strings.TrimSpace(a.rewrite.RewriteSystem)},
 		{Role: "user", Content: userContent},

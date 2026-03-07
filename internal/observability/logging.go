@@ -84,6 +84,9 @@ func RequestIDMiddleware(base *slog.Logger) gin.HandlerFunc {
 		reqID := newRequestID()
 		c.Header("X-Request-ID", reqID)
 
+		// Store request_id for error responses
+		c.Set("request_id", reqID)
+
 		// Build a child logger for this request.
 		reqLogger := base.With(
 			slog.String("request_id", reqID),

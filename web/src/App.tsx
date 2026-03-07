@@ -13,6 +13,8 @@ import { ApiProvider } from "@/lib/ApiContext";
 import Dashboard from "@/pages/Dashboard";
 import Export from "@/pages/Export";
 import Login from "@/pages/Login";
+import ProblemSetDetail from "@/pages/ProblemSetDetail";
+import ProblemSetList from "@/pages/ProblemSetList";
 import SeminarDetail from "@/pages/SeminarDetail";
 import SeminarList from "@/pages/SeminarList";
 import SeminarSessionRunner from "@/pages/SeminarSessionRunner";
@@ -21,8 +23,6 @@ import TutorialDetail from "@/pages/TutorialDetail";
 import TutorialList from "@/pages/TutorialList";
 import TutorialSessionRunner from "@/pages/TutorialSession";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import ProblemSetList from "@/pages/ProblemSetList";
-import ProblemSetDetail from "@/pages/ProblemSetDetail";
 
 function App() {
   return (
@@ -84,6 +84,10 @@ function App() {
           <Route
             path="/tutorials/:id/problem-sets/:problemSetId"
             element={<ProblemSetDetail />}
+          />
+          <Route
+            path="/problem-sets/:id/export"
+            element={<Export resourceType="problem_set" />}
           />
           <Route
             path="/tutorials/:id/export"

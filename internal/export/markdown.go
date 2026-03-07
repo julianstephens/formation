@@ -215,3 +215,54 @@ func tutorialSpeakerLabel(speaker string) string {
 		return "You"
 	}
 }
+
+// RenderProblemSetMarkdown produces a human-readable Markdown document for a
+// problem set export including all tasks and pattern links.
+func RenderProblemSetMarkdown(e *ProblemSetExport) []byte {
+	var sb strings.Builder
+	ps := e.ProblemSet
+
+	// ── Header ────────────────────────────────────────────────────────────────
+	fmt.Fprintf(&sb, "# Problem Set Export\n\n")
+	fmt.Fprintf(&sb, "**Problem Set ID:** %s  \n", ps.ID)
+	fmt.Fprintf(&sb, "**Tutorial ID:** %s  \n", ps.TutorialID)
+	fmt.Fprintf(&sb, "**Week of:** %s  \n", ps.WeekOf.Format("2006-01-02"))
+	if ps.AssignedFromSessionID != "" {
+		fmt.Fprintf(&sb, "**Assigned from session:** %s  \n", ps.AssignedFromSessionID)
+	}
+	fmt.Fprintf(&sb, "**Status:** %s  \n", ps.Status)
+	fmt.Fprintf(&sb, "**Created:** %s  \n", fmtTime(ps.CreatedAt))
+	fmt.Fprintf(&sb, "**Updated:** %s  \n\n", fmtTime(ps.UpdatedAt))
+
+	if ps.ReviewNotes != "" {
+		fmt.Fprintf(&sb, "**Review Notes:**\n\n> %s\n\n", strings.ReplaceAll(ps.ReviewNotes, "\n", "\n> "))
+	}
+
+	// ── Tasks ─────────────────────────────────────────────────────────────────
+	if len(ps.Tasks) > 0 {
+		fmt.Fprintf(&sb, "## Tasks (%d)\n\n", len(ps.Tasks))
+		for i, task := range ps.Tasks {
+			fmt.Fprintf(&sb, "### %d. %s\n\n", i+1, task.Title)
+			fmt.Fprintf(&sb, "**Pattern Code:** %s  \n", task.PatternCode)
+			if task.Description != "" {
+				fmt.Fprintf(&sb, "**Description:** %s  \n\n", task.Description)
+			}
+			fmt.Fprintf(&sb, "**Prompt:**\n\n%s\n\n", task.Prompt)
+		}
+	} else {
+		sb.WriteString("## Tasks\n\n_No tasks defined._\n\n")
+	}
+
+	// ── Pattern Links ─────────────────────────────────────────────────────────
+	if len(e.PatternLinks) > 0 {
+		fmt.Fprintf(&sb, "## Pattern Links (%d)\n\n", len(e.PatternLinks))
+		for _, link := range e.PatternLinks {
+			fmt.Fprintf(&sb, "- **Pattern:** %s  \n  **Diagnostic Entry:** %s\n\n",
+				link.PatternCode, link.DiagnosticEntryID)
+		}
+	} else {
+		sb.WriteString("## Pattern Links\n\n_No pattern links recorded._\n\n")
+	}
+
+	return []byte(sb.String())
+}

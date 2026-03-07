@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 	"unicode"
 
 	"github.com/julianstephens/formation/internal/domain"
 	"github.com/julianstephens/formation/internal/modules/seminar/repo"
+	"github.com/julianstephens/formation/internal/observability"
 )
 
 // SessionService implements all business operations for sessions.
@@ -42,13 +44,23 @@ func (s *SessionService) Create(
 	ownerSub, seminarID string,
 	p CreateSessionParams,
 ) (*domain.Session, error) {
+	logger := observability.LoggerFromContext(ctx)
+	logger.Debug("creating session",
+		slog.String("owner", ownerSub),
+		slog.String("seminar_id", seminarID),
+		slog.String("section", p.SectionLabel),
+		slog.String("mode", p.Mode),
+	)
+
 	if strings.TrimSpace(p.SectionLabel) == "" {
+		logger.Debug("validation failed: blank section label")
 		return nil, &ValidationError{Field: "section_label", Message: "must not be blank"}
 	}
 
 	// Verify seminar ownership and retrieve defaults.
 	sem, err := s.seminars.GetByID(ctx, seminarID, ownerSub)
 	if err != nil {
+		logger.Debug("seminar not found", slog.String("seminar_id", seminarID), slog.String("error", err.Error()))
 		return nil, wrapNotFound(err, "seminar", seminarID)
 	}
 
@@ -61,12 +73,15 @@ func (s *SessionService) Create(
 	}
 
 	if !validModes[p.Mode] {
+		logger.Debug("invalid mode", slog.String("mode", p.Mode))
 		return nil, &ValidationError{Field: "mode", Message: "must be 'paperback' or 'excerpt'"}
 	}
 	if p.Mode == "excerpt" && strings.TrimSpace(p.ExcerptText) == "" {
+		logger.Debug("excerpt mode requires excerpt text")
 		return nil, &ValidationError{Field: "excerpt_text", Message: "required when mode is 'excerpt'"}
 	}
 	if p.ReconMinutes < 15 || p.ReconMinutes > 20 {
+		logger.Debug("invalid recon minutes", slog.Int("minutes", p.ReconMinutes))
 		return nil, &ValidationError{Field: "recon_minutes", Message: "must be between 15 and 20"}
 	}
 
@@ -84,8 +99,14 @@ func (s *SessionService) Create(
 
 	created, err := s.sessions.Create(ctx, ownerSub, sess)
 	if err != nil {
+		logger.Error("failed to create session", slog.String("error", err.Error()))
 		return nil, fmt.Errorf("create session: %w", err)
 	}
+	logger.Debug("session created",
+		slog.String("id", created.ID),
+		slog.String("phase", string(created.Phase)),
+		slog.Time("phase_ends_at", created.PhaseEndsAt),
+	)
 	return created, nil
 }
 
@@ -99,16 +120,26 @@ type SessionDetail struct {
 
 // Get returns the session and its turns if owned by ownerSub.
 func (s *SessionService) Get(ctx context.Context, id, ownerSub string) (*SessionDetail, error) {
+	logger := observability.LoggerFromContext(ctx)
+	logger.Debug("fetching session", slog.String("id", id), slog.String("owner", ownerSub))
+
 	sess, err := s.sessions.GetByID(ctx, id, ownerSub)
 	if err != nil {
+		logger.Debug("session not found", slog.String("id", id), slog.String("error", err.Error()))
 		return nil, wrapNotFound(err, "session", id)
 	}
 
 	turns, err := s.sessions.ListTurns(ctx, id, ownerSub)
 	if err != nil {
+		logger.Error("failed to fetch session turns", slog.String("id", id), slog.String("error", err.Error()))
 		return nil, fmt.Errorf("get session turns: %w", err)
 	}
 
+	logger.Debug("session fetched",
+		slog.String("id", id),
+		slog.String("phase", string(sess.Phase)),
+		slog.Int("turn_count", len(turns)),
+	)
 	return &SessionDetail{Session: sess, Turns: turns}, nil
 }
 
@@ -141,19 +172,26 @@ func (s *SessionService) Delete(ctx context.Context, id, ownerSub string) error 
 // Returns NotFoundError if the session does not exist.
 // Returns ErrSessionTerminalError if the session is already terminal.
 func (s *SessionService) Abandon(ctx context.Context, id, ownerSub string) (*domain.Session, error) {
+	logger := observability.LoggerFromContext(ctx)
+	logger.Debug("abandoning session", slog.String("id", id), slog.String("owner", ownerSub))
+
 	// Fetch to distinguish "not found" from "already terminal".
 	existing, err := s.sessions.GetByID(ctx, id, ownerSub)
 	if err != nil {
+		logger.Debug("session not found for abandon", slog.String("id", id), slog.String("error", err.Error()))
 		return nil, wrapNotFound(err, "session", id)
 	}
 	if existing.IsTerminal() {
+		logger.Debug("session already terminal", slog.String("id", id), slog.String("status", string(existing.Status)))
 		return nil, &ErrSessionTerminalError{Status: existing.Status}
 	}
 
 	sess, err := s.sessions.Abandon(ctx, id, ownerSub)
 	if err != nil {
+		logger.Error("failed to abandon session", slog.String("id", id), slog.String("error", err.Error()))
 		return nil, wrapNotFound(err, "session", id)
 	}
+	logger.Debug("session abandoned", slog.String("id", id))
 	return sess, nil
 }
 
@@ -166,17 +204,23 @@ func (s *SessionService) SubmitResidue(
 	ctx context.Context,
 	id, ownerSub, residueText string,
 ) (*domain.Session, error) {
+	logger := observability.LoggerFromContext(ctx)
+	logger.Debug("submitting residue", slog.String("id", id), slog.Int("text_length", len(residueText)))
+
 	if err := validateResidue(residueText); err != nil {
+		logger.Debug("residue validation failed", slog.String("error", err.Error()))
 		return nil, err
 	}
 
 	sess, err := s.sessions.SetResidue(ctx, id, ownerSub, residueText)
 	if err != nil {
+		logger.Error("failed to set residue", slog.String("id", id), slog.String("error", err.Error()))
 		// ErrNotFound is returned by the repo when the UPDATE affects 0 rows,
 		// which happens when the session is not in residue_required phase, is
 		// already terminal, or belongs to a different owner.
 		return nil, wrapNotFound(err, "session", id)
 	}
+	logger.Debug("residue submitted", slog.String("id", id))
 	return sess, nil
 }
 

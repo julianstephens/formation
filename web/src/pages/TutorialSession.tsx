@@ -2,7 +2,6 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { ArtifactsDialog } from "@/components/dialogs/ArtifactsDialog";
 import { CreateArtifactDialog } from "@/components/dialogs/CreateArtifactDialog";
 import { ArtifactPanel } from "@/components/tutorials/ArtifactPanel";
-import { ProblemSetPanel } from "@/components/tutorials/ProblemSetPanel";
 import { TutorialTurnList } from "@/components/tutorials/TurnList";
 import { TutorialSessionActions } from "@/components/tutorials/TutorialSessionActions";
 import { TutorialSessionHeader } from "@/components/tutorials/TutorialSessionHeader";
@@ -415,13 +414,6 @@ const TutorialSessionRunner = () => {
           isTerminal={isTerminal}
           onAdd={artifactDialog.openDialog}
           onDelete={handleDeleteArtifact}
-        />
-      </Box>
-      <Box display={{ base: "none", lg: "block" }}>
-        <ProblemSetPanel
-          problemSet={detail.problem_set}
-          isTerminal={isTerminal}
-          onDelete={handleDeleteProblemSet}
         />
       </Box>
       <CreateArtifactDialog

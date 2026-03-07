@@ -34,6 +34,7 @@ type ExportRouteRegistrar interface {
 	RegisterUnderSessions(rg *gin.RouterGroup)
 	RegisterUnderTutorials(rg *gin.RouterGroup)
 	RegisterUnderTutorialSessions(rg *gin.RouterGroup)
+	RegisterUnderProblemSets(rg *gin.RouterGroup)
 }
 
 // TutorialRouteRegistrar extends RouteRegistrar with a second mount-point used
@@ -189,6 +190,15 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 		deps.TutorialSessionEvents.Register(tutorialSessionsGroup)
 	} else {
 		tutorialSessionsGroup.GET("/:id/events", placeholder("SSE stream"))
+	}
+
+	// ── Problem Sets ──────────────────────────────────────────────────────────
+	problemSetsGroup := v1.Group("/problem-sets")
+	// Problem Set export.
+	if deps.Exports != nil {
+		deps.Exports.RegisterUnderProblemSets(problemSetsGroup)
+	} else {
+		problemSetsGroup.GET("/:id/export", placeholder("export problem set"))
 	}
 
 	return r

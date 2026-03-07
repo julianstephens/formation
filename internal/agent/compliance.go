@@ -8,6 +8,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 )
@@ -107,7 +108,18 @@ func CheckViolations(agentOutput, phase, mode string) []string {
 	for _, r := range agentRules {
 		if r.check(agentOutput, phase, mode) {
 			violations = append(violations, r.desc)
+			slog.Debug("compliance violation detected",
+				slog.String("rule", r.name),
+				slog.String("desc", r.desc),
+				slog.String("phase", phase),
+			)
 		}
+	}
+	if len(violations) > 0 {
+		slog.Debug("total compliance violations",
+			slog.Int("count", len(violations)),
+			slog.String("phase", phase),
+		)
 	}
 	return violations
 }
@@ -142,10 +154,22 @@ func ApplyCompliance(
 	assembler *Assembler,
 	agentOutput, phase, mode string,
 ) (RewriteResult, error) {
+	slog.Debug("checking compliance",
+		slog.String("phase", phase),
+		slog.String("mode", mode),
+		slog.Int("output_length", len(agentOutput)),
+	)
+
 	violations := CheckViolations(agentOutput, phase, mode)
 	if len(violations) == 0 {
+		slog.Debug("no compliance violations found")
 		return RewriteResult{Text: agentOutput}, nil
 	}
+
+	slog.Debug("violations found, requesting rewrite",
+		slog.Int("violation_count", len(violations)),
+		slog.Any("violations", violations),
+	)
 
 	rewriteMessages := assembler.AssembleRewrite(RewriteParams{
 		OriginalOutput: agentOutput,
@@ -156,6 +180,7 @@ func ApplyCompliance(
 
 	rewritten, err := provider.Complete(ctx, rewriteMessages)
 	if err != nil {
+		slog.Error("compliance rewrite failed", slog.String("error", err.Error()))
 		// Surface the error but still return the original text so the turn
 		// pipeline can persist without blocking the user.
 		return RewriteResult{
@@ -164,6 +189,11 @@ func ApplyCompliance(
 			Flags:     []string{FlagAgentRewrite},
 		}, fmt.Errorf("compliance rewrite call: %w", err)
 	}
+
+	slog.Debug("compliance rewrite completed",
+		slog.Int("original_length", len(agentOutput)),
+		slog.Int("rewritten_length", len(rewritten)),
+	)
 
 	return RewriteResult{
 		Text:      rewritten,

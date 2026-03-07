@@ -40,3 +40,10 @@ type TutorialSessionExport struct {
 	Turns     []domain.TutorialTurn  `json:"turns"`
 	Artifacts []domain.Artifact      `json:"artifacts"`
 }
+
+// ProblemSetExport is the full denormalized export payload for a problem set.
+// It bundles the problem set record and associated pattern links.
+type ProblemSetExport struct {
+	ProblemSet   domain.ProblemSet              `json:"problem_set"`
+	PatternLinks []domain.ProblemSetPatternLink `json:"pattern_links"`
+}

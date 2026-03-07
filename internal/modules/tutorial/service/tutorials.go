@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -50,16 +51,26 @@ func (s *TutorialService) CreateTutorial(
 	ownerSub string,
 	p CreateTutorialParams,
 ) (*domain.Tutorial, error) {
+	logger := observability.LoggerFromContext(ctx)
+	logger.Debug("creating tutorial",
+		slog.String("owner", ownerSub),
+		slog.String("title", p.Title),
+		slog.String("difficulty", p.Difficulty),
+	)
+
 	if strings.TrimSpace(p.Title) == "" {
+		logger.Debug("validation failed: blank title")
 		return nil, &ValidationError{Field: "title", Message: "must not be blank"}
 	}
 	if strings.TrimSpace(p.Subject) == "" {
+		logger.Debug("validation failed: blank subject")
 		return nil, &ValidationError{Field: "subject", Message: "must not be blank"}
 	}
 	if p.Difficulty == "" {
 		p.Difficulty = "beginner"
 	}
 	if !validDifficulties[p.Difficulty] {
+		logger.Debug("invalid difficulty", slog.String("difficulty", p.Difficulty))
 		return nil, &ValidationError{Field: "difficulty", Message: "must be 'beginner', 'intermediate', or 'advanced'"}
 	}
 
@@ -69,7 +80,13 @@ func (s *TutorialService) CreateTutorial(
 		Description: p.Description,
 		Difficulty:  p.Difficulty,
 	}
-	return s.repo.CreateTutorial(ctx, ownerSub, tut)
+	created, err := s.repo.CreateTutorial(ctx, ownerSub, tut)
+	if err != nil {
+		logger.Error("failed to create tutorial", slog.String("error", err.Error()))
+		return nil, err
+	}
+	logger.Debug("tutorial created", slog.String("id", created.ID))
+	return created, nil
 }
 
 // ── Tutorial Get ───────────────────────────────────────────────────────────────
@@ -161,13 +178,22 @@ func (s *TutorialSessionService) CreateTutorialSession(
 	ownerSub, tutorialID string,
 	kind domain.TutorialSessionKind,
 ) (*domain.TutorialSession, error) {
+	logger := observability.LoggerFromContext(ctx)
+	logger.Debug("creating tutorial session",
+		slog.String("owner", ownerSub),
+		slog.String("tutorial_id", tutorialID),
+		slog.String("kind", string(kind)),
+	)
+
 	// Verify tutorial ownership.
 	if _, err := s.tutorials.GetTutorialByID(ctx, tutorialID, ownerSub); err != nil {
+		logger.Debug("tutorial not found", slog.String("tutorial_id", tutorialID), slog.String("error", err.Error()))
 		return nil, wrapNotFound(err, "tutorial", tutorialID)
 	}
 
 	// Validate kind if provided (empty is allowed for backward compatibility).
 	if kind != "" && !domain.ValidTutorialSessionKind(kind) {
+		logger.Debug("invalid session kind", slog.String("kind", string(kind)))
 		return nil, &ValidationError{Field: "kind", Message: "must be 'diagnostic' or 'extended'"}
 	}
 
@@ -177,8 +203,10 @@ func (s *TutorialSessionService) CreateTutorialSession(
 	}
 	created, err := s.sessions.CreateSession(ctx, ownerSub, sess)
 	if err != nil {
+		logger.Error("failed to create tutorial session", slog.String("error", err.Error()))
 		return nil, fmt.Errorf("create tutorial session: %w", err)
 	}
+	logger.Debug("tutorial session created", slog.String("id", created.ID))
 	return created, nil
 }
 
@@ -197,41 +225,43 @@ func (s *TutorialSessionService) GetTutorialSession(
 	ctx context.Context,
 	id, ownerSub string,
 ) (*TutorialSessionDetail, error) {
-	fmt.Printf("[TutorialSessionService.GetTutorialSession] START session_id=%s owner=%s\n", id, ownerSub)
+	logger := observability.LoggerFromContext(ctx)
+	logger.Debug("fetching tutorial session", slog.String("id", id), slog.String("owner", ownerSub))
 
 	sess, err := s.sessions.GetSessionByID(ctx, id, ownerSub)
 	if err != nil {
-		fmt.Printf("[TutorialSessionService.GetTutorialSession] GetSessionByID failed: %v\n", err)
+		logger.Debug("tutorial session not found", slog.String("id", id), slog.String("error", err.Error()))
 		return nil, wrapNotFound(err, "tutorial_session", id)
 	}
-	fmt.Printf("[TutorialSessionService.GetTutorialSession] Found session: %+v\n", sess)
 
 	artifacts, err := s.sessions.ListArtifactsBySessionID(ctx, id, ownerSub)
 	if err != nil {
-		fmt.Printf("[TutorialSessionService.GetTutorialSession] ListArtifactsBySessionID failed: %v\n", err)
+		logger.Error("failed to fetch session artifacts", slog.String("id", id), slog.String("error", err.Error()))
 		return nil, fmt.Errorf("get session artifacts: %w", err)
 	}
-	fmt.Printf("[TutorialSessionService.GetTutorialSession] Found %d artifacts\n", len(artifacts))
 
 	turns, err := s.sessions.ListTutorialTurns(ctx, id, ownerSub)
 	if err != nil {
-		fmt.Printf("[TutorialSessionService.GetTutorialSession] ListTutorialTurns failed: %v\n", err)
+		logger.Error("failed to fetch session turns", slog.String("id", id), slog.String("error", err.Error()))
 		return nil, fmt.Errorf("get session turns: %w", err)
 	}
-	fmt.Printf("[TutorialSessionService.GetTutorialSession] Found %d turns\n", len(turns))
 
 	// Fetch problem set if one is assigned to this session
 	var problemSet *domain.ProblemSet
 	ps, err := s.sessions.GetProblemSetBySession(ctx, id, ownerSub)
 	if err == nil {
 		problemSet = ps
-		fmt.Printf("[TutorialSessionService.GetTutorialSession] Found problem set: %s\n", ps.ID)
+		logger.Debug("problem set found for session", slog.String("problem_set_id", ps.ID))
 	} else {
-		fmt.Printf("[TutorialSessionService.GetTutorialSession] GetProblemSetBySession error (may be expected): %v\n", err)
+		logger.Debug("no problem set found for session", slog.String("error", err.Error()))
 	}
 	// Ignore not found error - it's valid for sessions to have no problem set
 
-	fmt.Printf("[TutorialSessionService.GetTutorialSession] SUCCESS\n")
+	logger.Debug("tutorial session fetched",
+		slog.String("id", id),
+		slog.Int("artifact_count", len(artifacts)),
+		slog.Int("turn_count", len(turns)),
+	)
 	return &TutorialSessionDetail{Session: sess, Artifacts: artifacts, Turns: turns, ProblemSet: problemSet}, nil
 }
 
@@ -263,18 +293,25 @@ func (s *TutorialSessionService) CompleteTutorialSession(
 	ctx context.Context,
 	id, ownerSub, notes string,
 ) (*domain.TutorialSession, error) {
+	logger := observability.LoggerFromContext(ctx)
+	logger.Debug("completing tutorial session", slog.String("id", id), slog.String("owner", ownerSub))
+
 	existing, err := s.sessions.GetSessionByID(ctx, id, ownerSub)
 	if err != nil {
+		logger.Debug("session not found", slog.String("id", id), slog.String("error", err.Error()))
 		return nil, wrapNotFound(err, "tutorial_session", id)
 	}
 	if existing.IsTerminal() {
+		logger.Debug("session already terminal", slog.String("id", id), slog.String("status", string(existing.Status)))
 		return nil, &ErrSessionTerminalError{Status: string(existing.Status)}
 	}
 
 	sess, err := s.sessions.CompleteSession(ctx, id, ownerSub, notes)
 	if err != nil {
+		logger.Error("failed to complete session", slog.String("id", id), slog.String("error", err.Error()))
 		return nil, wrapNotFound(err, "tutorial_session", id)
 	}
+	logger.Debug("tutorial session completed", slog.String("id", id))
 	return sess, nil
 }
 
@@ -370,21 +407,33 @@ func (s *ArtifactService) CreateArtifact(
 	ownerSub, sessionID string,
 	p CreateArtifactParams,
 ) (*domain.Artifact, error) {
+	logger := observability.LoggerFromContext(ctx)
+	logger.Debug("creating artifact",
+		slog.String("owner", ownerSub),
+		slog.String("session_id", sessionID),
+		slog.String("kind", string(p.Kind)),
+		slog.String("title", p.Title),
+	)
+
 	if !domain.ValidArtifactKind(p.Kind) {
+		logger.Debug("invalid artifact kind", slog.String("kind", string(p.Kind)))
 		return nil, &ValidationError{
 			Field:   "kind",
 			Message: "must be 'summary', 'notes', 'problem_set', or 'diagnostic'",
 		}
 	}
 	if strings.TrimSpace(p.Title) == "" {
+		logger.Debug("validation failed: blank title")
 		return nil, &ValidationError{Field: "title", Message: "must not be blank"}
 	}
 	if strings.TrimSpace(p.Content) == "" {
+		logger.Debug("validation failed: blank content")
 		return nil, &ValidationError{Field: "content", Message: "must not be blank"}
 	}
 
 	// Verify session ownership.
 	if _, err := s.repo.GetSessionByID(ctx, sessionID, ownerSub); err != nil {
+		logger.Debug("session not found", slog.String("session_id", sessionID), slog.String("error", err.Error()))
 		return nil, wrapNotFound(err, "tutorial_session", sessionID)
 	}
 
@@ -397,8 +446,10 @@ func (s *ArtifactService) CreateArtifact(
 	}
 	created, err := s.repo.CreateArtifact(ctx, ownerSub, art)
 	if err != nil {
+		logger.Error("failed to create artifact", slog.String("error", err.Error()))
 		return nil, fmt.Errorf("create artifact: %w", err)
 	}
+	logger.Debug("artifact created", slog.String("id", created.ID))
 	return created, nil
 }
 

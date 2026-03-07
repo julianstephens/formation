@@ -1,8 +1,9 @@
+import { ExportButton } from "@/components/Button";
 import { useApi } from "@/lib/ApiContext";
 import type { ProblemSet } from "@/lib/types";
 import {
   Badge,
-  Button,
+  Card,
   Flex,
   Heading,
   HStack,
@@ -15,7 +16,6 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import type { IconType } from "react-icons";
 import {
-  LuChevronRight,
   LuCircleAlert,
   LuCircleCheck,
   LuClock,
@@ -37,7 +37,7 @@ const statusIcon: Record<string, IconType> = {
   deleted: LuCircleAlert,
 };
 
-const ProblemSetButton = ({ ps }: { ps: ProblemSet }) => {
+const ProblemSetButton = ({ ps }: { ps: ProblemSet; }) => {
   const navigate = useNavigate();
   const patterns = [
     ...new Set(
@@ -46,33 +46,28 @@ const ProblemSetButton = ({ ps }: { ps: ProblemSet }) => {
   ];
 
   return (
-    <Button
-      onClick={() =>
-        navigate(`/tutorials/${ps.tutorial_id}/problem-sets/${ps.id}`)
-      }
+    <Card.Root
       id={`problemSet-${ps.id}`}
       key={ps.id}
       w="full"
-      h="fit"
-      justifyContent="start"
-      alignItems="start"
-      textAlign="left"
       bgColor="#1a1a1a"
       border="1px #333 solid"
       rounded="lg"
-      color="white"
-      _hover={{ bgColor: "#252525" }}
-      transition="background-color 0.25s, color 0.25s"
-      disabled={ps.status === "deleted"}
     >
-      <VStack align="start" w="full">
-        <HStack
-          id="problemSetInfo"
-          justify="space-between"
-          align="start"
-          w="full"
-        >
-          <VStack align="start">
+      <Card.Body p={4}>
+        <HStack justify="space-between" align="start" w="full" gap={4}>
+          <VStack
+            align="start"
+            flex={1}
+            cursor={ps.status !== "deleted" ? "pointer" : "default"}
+            onClick={() => {
+              if (ps.status !== "deleted") {
+                navigate(`/tutorials/${ps.tutorial_id}/problem-sets/${ps.id}`);
+              }
+            }}
+            _hover={ps.status !== "deleted" ? { opacity: 0.8 } : {}}
+            transition="opacity 0.2s"
+          >
             <Heading
               size="sm"
               fontWeight="bold"
@@ -84,45 +79,39 @@ const ProblemSetButton = ({ ps }: { ps: ProblemSet }) => {
               <Span>•</Span>
               <Text>Assigned from {ps.assigned_from_session_id}</Text>
             </HStack>
+            <VStack id="problemSetPatterns" w="full" mt={2} align="start">
+              <Text fontSize="xs" color="fg.muted">
+                Target Patterns:
+              </Text>
+              <HStack gap={2} flexWrap="wrap">
+                {patterns.map((pattern) => (
+                  <Badge
+                    size="xs"
+                    fontSize="xs"
+                    key={pattern}
+                    bgColor="#2a2a2a"
+                    color="#f59e0b"
+                    px={2}
+                    py={1}
+                  >
+                    {pattern}
+                  </Badge>
+                ))}
+              </HStack>
+            </VStack>
           </VStack>
-          <HStack>
+          <HStack gap={2} flexShrink={0}>
             <Badge colorPalette={statusColor[ps.status] ?? ""}>
               <Icon w={4} h={4} as={statusIcon[ps.status] ?? LuCircleAlert} />
               {ps.status}
             </Badge>
             {ps.status !== "deleted" && (
-              <Icon
-                as={LuChevronRight}
-                w={4}
-                h={4}
-                strokeWidth="1"
-                color="fg.muted"
-              />
+              <ExportButton to={`/problem-sets/${ps.id}/export`} />
             )}
           </HStack>
         </HStack>
-        <VStack id="problemSetPatterns" w="full" mt={2} align="start">
-          <Text fontSize="xs" color="fg.muted">
-            Target Patterns:
-          </Text>
-          <HStack gap={2}>
-            {patterns.map((pattern) => (
-              <Badge
-                size="xs"
-                fontSize="xs"
-                key={pattern}
-                bgColor="#2a2a2a"
-                color="#f59e0b"
-                px={2}
-                py={1}
-              >
-                {pattern}
-              </Badge>
-            ))}
-          </HStack>
-        </VStack>
-      </VStack>
-    </Button>
+      </Card.Body>
+    </Card.Root>
   );
 };
 
@@ -159,7 +148,7 @@ const ProblemSetList = () => {
     } finally {
       setLoading(false);
     }
-  }, [api]);
+  }, [api, params.id]);
 
   useEffect(() => {
     void load();

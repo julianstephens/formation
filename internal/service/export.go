@@ -167,6 +167,33 @@ func (s *ExportService) ExportTutorialSession(
 	}, nil
 }
 
+// ExportProblemSet loads the problem set and its pattern links, assembling them
+// into a ProblemSetExport.
+// Returns NotFoundError when the problem set does not exist or is not owned by ownerSub.
+func (s *ExportService) ExportProblemSet(
+	ctx context.Context,
+	problemSetID, ownerSub string,
+) (*export.ProblemSetExport, error) {
+	if s.tutorials == nil {
+		return nil, fmt.Errorf("tutorial repository not initialized")
+	}
+
+	ps, err := s.tutorials.GetProblemSetByID(ctx, problemSetID, ownerSub)
+	if err != nil {
+		return nil, WrapNotFound(err, "problem_set", problemSetID)
+	}
+
+	links, err := s.tutorials.ListPatternLinksForProblemSet(ctx, problemSetID)
+	if err != nil {
+		return nil, fmt.Errorf("load pattern links for problem set export: %w", err)
+	}
+
+	return &export.ProblemSetExport{
+		ProblemSet:   *ps,
+		PatternLinks: links,
+	}, nil
+}
+
 // ── S3 upload + presign helpers ────────────────────────────────────────────────
 
 // UploadAndPresignSeminar assembles the seminar export, renders it to the
@@ -319,6 +346,68 @@ func (s *ExportService) UploadAndPresignTutorialSession(
 
 	logger.Info("tutorial session export uploaded",
 		slog.String("session_id", sessionID),
+		slog.String("format", format),
+		slog.String("key", key),
+	)
+	return url, nil
+}
+
+// UploadAndPresignProblemSet assembles the problem set export, renders it to the
+// requested format, uploads it to S3, and returns a presigned download URL.
+// Returns an error if the S3 upload fails.
+func (s *ExportService) UploadAndPresignProblemSet(
+	ctx context.Context,
+	problemSetID, ownerSub, format string,
+) (string, error) {
+	logger := observability.LoggerFromContext(ctx)
+
+	if s.s3 == nil {
+		logger.Error("s3 client not initialized")
+		return "", fmt.Errorf("s3 client not configured")
+	}
+
+	logger.Info("exporting problem set",
+		slog.String("problem_set_id", problemSetID),
+		slog.String("format", format),
+	)
+
+	result, err := s.ExportProblemSet(ctx, problemSetID, ownerSub)
+	if err != nil {
+		logger.Error("failed to export problem set",
+			slog.String("problem_set_id", problemSetID),
+			slog.String("error", err.Error()),
+		)
+		return "", err
+	}
+
+	content, contentType, ext, err := renderExport(result, format,
+		export.RenderProblemSetMarkdown, export.RenderProblemSetJSON)
+	if err != nil {
+		logger.Error("failed to render problem set export",
+			slog.String("problem_set_id", problemSetID),
+			slog.String("format", format),
+			slog.String("error", err.Error()),
+		)
+		return "", err
+	}
+
+	key := fmt.Sprintf("exports/problem-sets/%s.%s", problemSetID, ext)
+	if err := s.s3.Upload(ctx, key, content, contentType); err != nil {
+		logger.Error("s3 upload failed", slog.String("key", key), slog.String("error", err.Error()))
+		return "", fmt.Errorf("upload problem set export: %w", err)
+	}
+
+	url, err := s.s3.PresignURL(ctx, key)
+	if err != nil {
+		logger.Error("s3 presign failed",
+			slog.String("key", key),
+			slog.String("error", err.Error()),
+		)
+		return "", fmt.Errorf("presign problem set export: %w", err)
+	}
+
+	logger.Info("problem set export uploaded",
+		slog.String("problem_set_id", problemSetID),
 		slog.String("format", format),
 		slog.String("key", key),
 	)

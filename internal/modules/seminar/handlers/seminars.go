@@ -4,7 +4,6 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -54,7 +53,13 @@ func (h *SeminarHandler) List(c *gin.Context) {
 
 	seminars, err := h.svc.List(c.Request.Context(), ownerSub)
 	if err != nil {
-		apphttp.Fail(c, http.StatusInternalServerError, "internal_error", "failed to list seminars")
+		_ = c.Error(err)
+		apphttp.Fail(
+			c,
+			http.StatusInternalServerError,
+			"internal_error",
+			"Failed to retrieve seminars. Please try again later",
+		)
 		return
 	}
 
@@ -82,7 +87,9 @@ func (h *SeminarHandler) Create(c *gin.Context) {
 
 	var req apphttp.CreateSeminarRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		apphttp.Fail(c, http.StatusBadRequest, "invalid_request", err.Error())
+		apphttp.FailDetails(c, http.StatusBadRequest, "invalid_request",
+			"The request body is invalid or missing required fields",
+			gin.H{"error": err.Error()})
 		return
 	}
 
@@ -143,7 +150,9 @@ func (h *SeminarHandler) Update(c *gin.Context) {
 
 	var req apphttp.UpdateSeminarRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		apphttp.Fail(c, http.StatusBadRequest, "invalid_request", err.Error())
+		apphttp.FailDetails(c, http.StatusBadRequest, "invalid_request",
+			"The request body is invalid or missing required fields",
+			gin.H{"error": err.Error()})
 		return
 	}
 
@@ -202,20 +211,5 @@ func toSeminarResponse(s domain.Seminar) apphttp.SeminarResponse {
 
 // handleServiceError maps well-known service errors to HTTP status codes.
 func handleServiceError(c *gin.Context, err error) {
-	var notFound *service.NotFoundError
-	if errors.As(err, &notFound) {
-		apphttp.Fail(c, http.StatusNotFound, "not_found", err.Error())
-		return
-	}
-
-	var valErr *service.ValidationError
-	if errors.As(err, &valErr) {
-		apphttp.FailDetails(c, http.StatusBadRequest, "validation_error", err.Error(), gin.H{
-			"field":   valErr.Field,
-			"message": valErr.Message,
-		})
-		return
-	}
-
-	apphttp.Fail(c, http.StatusInternalServerError, "internal_error", "an unexpected error occurred")
+	apphttp.HandleServiceError(c, err)
 }
