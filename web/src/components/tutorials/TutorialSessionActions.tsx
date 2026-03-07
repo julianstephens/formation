@@ -3,10 +3,12 @@ import {
   Button,
   Card,
   HStack,
+  Icon,
   Text,
   Textarea,
   VStack,
 } from "@chakra-ui/react";
+import { LuBan } from "react-icons/lu";
 
 export const TutorialSessionActions = ({
   onComplete,
@@ -36,20 +38,19 @@ export const TutorialSessionActions = ({
       <HStack w="full" gap={3} wrap="wrap">
         <Button
           size="sm"
-          bg="#f59e0b"
-          color="black"
-          _hover={{ bg: "#fbbf24" }}
+          className="primary"
           onClick={onToggleCompleteForm}
         >
           {showCompleteForm ? "Cancel" : "Complete Session"}
         </Button>
         <Button
           size="sm"
-          variant="outline"
-          colorScheme="red"
+          variant="subtle"
+          colorPalette="red"
           loading={abandoning}
           onClick={onAbandon}
         >
+          <Icon as={LuBan} />
           Abandon
         </Button>
       </HStack>
@@ -64,9 +65,7 @@ export const TutorialSessionActions = ({
               rows={4}
             />
             <Button
-              bg="#f59e0b"
-              color="black"
-              _hover={{ bg: "#fbbf24" }}
+              className="primary"
               loading={completing}
               onClick={onComplete}
             >

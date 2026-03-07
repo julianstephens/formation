@@ -11,16 +11,19 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useState } from "react";
-import { LuArrowLeft, LuDownload } from "react-icons/lu";
+import { LuFileText } from "react-icons/lu";
+import { BackButton, ExportButton } from "../Button";
 
 export const TutorialSessionHeader = ({
   detail,
-  onBack,
-  onExport,
+  toBack,
+  toExport,
+  onOpenArtifacts,
 }: {
   detail: TutorialSessionDetail;
-  onBack: () => void;
-  onExport: () => void;
+  toBack: string;
+  toExport: string;
+  onOpenArtifacts: () => void;
 }) => {
   const [kindDesc] = useState(
     detail.kind && detail.kind === "diagnostic"
@@ -58,7 +61,7 @@ export const TutorialSessionHeader = ({
                 </Text>
               )}
             </Box>
-            <HStack gap={2} flexShrink={0}>
+            <HStack gap={2} flexWrap={{ base: "wrap", md: "nowrap" }}>
               <Badge
                 colorPalette={
                   detail.status === "complete"
@@ -71,33 +74,16 @@ export const TutorialSessionHeader = ({
                 {detail.status}
               </Badge>
               <Button
-                size="xs"
-                py={2}
-                px={4}
-                display="flex"
-                alignItems="center"
+                display={{ lg: "none" }}
+                size="sm"
                 className="grey"
-                onClick={onExport}
+                onClick={onOpenArtifacts}
               >
-                <Icon w={4} h={4}>
-                  <LuDownload />
-                </Icon>
-                Export
+                <Icon as={LuFileText} />
+                Artifacts
               </Button>
-              <Button
-                size="xs"
-                py={2}
-                px={4}
-                display="flex"
-                alignItems="center"
-                className="grey"
-                onClick={onBack}
-              >
-                <Icon>
-                  <LuArrowLeft />
-                </Icon>
-                Back
-              </Button>
+              <ExportButton to={toExport} />
+              <BackButton backPath={toBack} />
             </HStack>
           </HStack>
           <Alert.Root

@@ -1,5 +1,6 @@
 import AuthGuard from "@/components/AuthGuard";
 import { Layout, RunnerLayout } from "@/components/Layout";
+import { CreateArtifactDialogProvider } from "@/contexts/CreateArtifactDialogContext";
 import { CreateTutorialDialogProvider } from "@/contexts/CreateTutorialDialogContext";
 import { EditSeminarDialogProvider } from "@/contexts/EditSeminarDialogContext";
 import { NewSessionDialogProvider } from "@/contexts/NewSessionDialogContext";
@@ -41,7 +42,9 @@ function App() {
                           <SelectSeminarDialogProvider>
                             <SelectTutorialDialogProvider>
                               <CreateTutorialDialogProvider>
-                                <Layout />
+                                <CreateArtifactDialogProvider>
+                                  <Layout />
+                                </CreateArtifactDialogProvider>
                               </CreateTutorialDialogProvider>
                             </SelectTutorialDialogProvider>
                           </SelectSeminarDialogProvider>
@@ -98,7 +101,9 @@ function App() {
                           <SelectSeminarDialogProvider>
                             <SelectTutorialDialogProvider>
                               <CreateTutorialDialogProvider>
-                                <RunnerLayout />
+                                <CreateArtifactDialogProvider>
+                                  <RunnerLayout />
+                                </CreateArtifactDialogProvider>
                               </CreateTutorialDialogProvider>
                             </SelectTutorialDialogProvider>
                           </SelectSeminarDialogProvider>

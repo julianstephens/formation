@@ -42,7 +42,7 @@ const ArtifactList = ({
   }
 
   return (
-    <VStack id="artifactList" p={3} gap={3}>
+    <VStack id="artifactList" p={3} gap={3} overflowY="auto">
       {artifacts.map((a) => (
         <Card.Root id={`artifact-${a.id}`} key={a.id}>
           <Card.Body>

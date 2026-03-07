@@ -1,8 +1,11 @@
 import { ChatInput } from "@/components/chat/ChatInput";
+import { ArtifactsDialog } from "@/components/dialogs/ArtifactsDialog";
+import { CreateArtifactDialog } from "@/components/dialogs/CreateArtifactDialog";
 import { ArtifactPanel } from "@/components/tutorials/ArtifactPanel";
 import { TutorialTurnList } from "@/components/tutorials/TurnList";
 import { TutorialSessionActions } from "@/components/tutorials/TutorialSessionActions";
 import { TutorialSessionHeader } from "@/components/tutorials/TutorialSessionHeader";
+import { useCreateArtifactDialog } from "@/contexts/CreateArtifactDialogContext";
 import {
   useTutorialSessionEventsSubscription,
   useTutorialSessionEventsUnsubscribe,
@@ -31,11 +34,16 @@ import { useNavigate, useParams } from "react-router-dom";
 // ── Main component ────────────────────────────────────────────────────────────
 
 const TutorialSessionRunner = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string; }>();
   console.log("[TutorialSessionRunner] Component rendered, id:", id);
   const api = useApi();
   const navigate = useNavigate();
   const unsubscribe = useTutorialSessionEventsUnsubscribe();
+
+  // Artifact dialog
+  const artifactDialog = useCreateArtifactDialog();
+  const [creatingArtifact, setCreatingArtifact] = useState(false);
+  const [artifactsDialogOpen, setArtifactsDialogOpen] = useState(false);
 
   // Session + artifacts
   const [detail, setDetail] = useState<TutorialSessionDetail | null>(null);
@@ -134,9 +142,9 @@ const TutorialSessionRunner = () => {
       setDetail((prev) =>
         prev
           ? {
-              ...prev,
-              artifacts: prev.artifacts.filter((a) => a.id !== artifact_id),
-            }
+            ...prev,
+            artifacts: prev.artifacts.filter((a) => a.id !== artifact_id),
+          }
           : prev,
       );
     },
@@ -226,11 +234,6 @@ const TutorialSessionRunner = () => {
     }
   };
 
-  const handleExport = () => {
-    if (!id) return;
-    navigate(`/tutorial-sessions/${id}/export`);
-  };
-
   const handleDeleteArtifact = async (artifact: Artifact) => {
     if (!id || !window.confirm(`Delete artifact "${artifact.title}"?`)) return;
     try {
@@ -238,13 +241,55 @@ const TutorialSessionRunner = () => {
       setDetail((prev) =>
         prev
           ? {
-              ...prev,
-              artifacts: prev.artifacts.filter((a) => a.id !== artifact.id),
-            }
+            ...prev,
+            artifacts: prev.artifacts.filter((a) => a.id !== artifact.id),
+          }
           : null,
       );
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : String(e));
+    }
+  };
+
+  const handleCreateArtifact = async () => {
+    if (!id) return;
+    const title = artifactDialog.titleRef.current?.value.trim();
+    const content = artifactDialog.contentRef.current?.value.trim();
+
+    if (!title || !content) {
+      setError("Title and content are required");
+      return;
+    }
+
+    setCreatingArtifact(true);
+    setError(null);
+
+    try {
+      const artifact = await api.createArtifact(id, {
+        kind: artifactDialog.kind,
+        title,
+        content,
+      });
+      setDetail((prev) =>
+        prev ? { ...prev, artifacts: [...prev.artifacts, artifact] } : prev,
+      );
+
+      // Reset form
+      if (artifactDialog.titleRef.current) {
+        artifactDialog.titleRef.current.value = "";
+      }
+      if (artifactDialog.contentRef.current) {
+        artifactDialog.contentRef.current.value = "";
+      }
+
+      // Close dialog only if "create another" is not checked
+      if (!artifactDialog.createAnother) {
+        artifactDialog.closeDialog();
+      }
+    } catch (e) {
+      setError(e instanceof ApiRequestError ? e.message : String(e));
+    } finally {
+      setCreatingArtifact(false);
     }
   };
 
@@ -271,8 +316,9 @@ const TutorialSessionRunner = () => {
         {/* A. Header */}
         <TutorialSessionHeader
           detail={detail}
-          onBack={() => navigate(`/tutorials/${detail.tutorial_id}`)}
-          onExport={handleExport}
+          toBack={`/tutorials/${detail.tutorial_id}`}
+          toExport={`/tutorial-sessions/${id}/export`}
+          onOpenArtifacts={() => setArtifactsDialogOpen(true)}
         />
 
         {/* E. Error banners */}
@@ -336,41 +382,7 @@ const TutorialSessionRunner = () => {
           onSend={() => void handleSubmitTurn()}
           disabled={isTerminal}
         />
-        {/* C. Artifact panel (side) */}
-        {/* <Box w={{ base: "full", md: "340px" }} flexShrink={0}>
-          <HStack mb={3} justify="space-between">
-            <Heading size="sm">Artifacts ({detail.artifacts.length})</Heading>
-            {!isTerminal && (
-              <Button
-                size="sm"
-                bg="#f59e0b"
-                color="black"
-                _hover={{ bg: "#fbbf24" }}
-                onClick={() => setShowArtifactForm((v) => !v)}
-              >
-                {showArtifactForm ? "Cancel" : "Add"}
-              </Button>
-            )}
-          </HStack>
 
-          {showArtifactForm && (
-            <ArtifactComposer
-              onSave={() => void handleCreateArtifact()}
-              onCancel={() => setShowArtifactForm(false)}
-              saving={creatingArtifact}
-              artifactKind={artifactKind}
-              setArtifactKind={setArtifactKind}
-              titleRef={artifactTitleRef}
-              contentRef={artifactContentRef}
-            />
-          )}
-
-          <ArtifactList
-            artifacts={detail.artifacts}
-            isTerminal={isTerminal}
-            onDelete={(a) => void handleDeleteArtifact(a)}
-          />
-        </Box> */}
         {/* D. Completion controls */}
         {!isTerminal && (
           <TutorialSessionActions
@@ -388,10 +400,30 @@ const TutorialSessionRunner = () => {
         <ArtifactPanel
           artifacts={detail.artifacts}
           isTerminal={isTerminal}
-          onAdd={() => {}}
+          onAdd={artifactDialog.openDialog}
           onDelete={handleDeleteArtifact}
         />
       </Box>
+      <CreateArtifactDialog
+        isOpen={artifactDialog.isOpen}
+        onClose={artifactDialog.closeDialog}
+        titleRef={artifactDialog.titleRef}
+        contentRef={artifactDialog.contentRef}
+        kind={artifactDialog.kind}
+        setKind={artifactDialog.setKind}
+        creating={creatingArtifact}
+        handleCreate={() => void handleCreateArtifact()}
+        createAnother={artifactDialog.createAnother}
+        setCreateAnother={artifactDialog.setCreateAnother}
+      />
+      <ArtifactsDialog
+        isOpen={artifactsDialogOpen}
+        onClose={() => setArtifactsDialogOpen(false)}
+        artifacts={detail.artifacts}
+        isTerminal={isTerminal}
+        onAdd={artifactDialog.openDialog}
+        onDelete={handleDeleteArtifact}
+      />
     </Flex>
   );
 };
