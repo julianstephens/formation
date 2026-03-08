@@ -4,7 +4,7 @@
 BINARY_NAME=formation
 BUILD_DIR=bin
 CMD_DIR=./cmd/api
-VERSION?=0.1.0
+VERSION?=0.1.1
 LDFLAGS=-ldflags "-X main.version=$(VERSION)"
 
 # Default target
