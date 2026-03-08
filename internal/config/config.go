@@ -40,45 +40,17 @@ type Config struct {
 	S3Region      string
 }
 
-// Load reads configuration from environment variables, returning an error
-// if any required variable is missing.
-func Load() (*Config, error) {
-	cfg := &Config{
-		Port:             getEnv("PORT", "8080"),
-		Env:              getEnv("APP_ENV", "dev"),
-		AllowedOrigins:   strings.Split(getEnv("ALLOWED_ORIGINS", ""), ","),
-		DatabaseURL:      os.Getenv("DATABASE_URL"),
-		Auth0Domain:      os.Getenv("AUTH0_DOMAIN"),
-		Auth0Audience:    os.Getenv("AUTH0_AUDIENCE"),
-		OpenAIAPIKey:     os.Getenv("OPENAI_API_KEY"),
-		OpenAIModel:      getEnv("OPENAI_MODEL", "gpt-4o"),
-		EnableStreaming:  getEnv("ENABLE_STREAMING", true),
-		TimerTickSeconds: getEnv("TIMER_TICK_SECONDS", 2),
-		S3EndpointURL:    os.Getenv("S3_ENDPOINT_URL"),
-		S3AccessKeyID:    os.Getenv("S3_ACCESS_KEY_ID"),
-		S3SecretKey:      os.Getenv("S3_SECRET_KEY"),
-		S3BucketName:     os.Getenv("S3_BUCKET_NAME"),
-		S3Region:         getEnv("S3_REGION", "us-east-1"),
-	}
-
-	if err := cfg.validate(); err != nil {
-		return nil, err
-	}
-
-	return cfg, nil
-}
-
 // LoadFromInfisical loads configuration from Infisical secrets.
 // It requires the following environment variables to be set for Infisical authentication:
-// - APP_ENV (used to determine which environment's secrets to load, e.g. "development" or "production")
+// - APP_ENV (used to determine which environment's secrets to load, e.g. "dev" or "prod")
 // - INFISICAL_CLIENT_ID
 // - INFISICAL_CLIENT_SECRET
 // - INFISICAL_PROJECT_ID
 // - INFISICAL_SECRET_PATH
 func LoadFromInfisical() (*Config, error) {
 	client := infisical.NewInfisicalClient(context.Background(), infisical.Config{
-		SiteUrl:          "https://infisical.cyborgdev.cloud", // Optional, default is https://app.infisical.com
-		AutoTokenRefresh: true,                                // Wether or not to let the SDK handle the access token lifecycle. Defaults to true if not specified.
+		SiteUrl:          "https://infisical.cyborgdev.cloud",
+		AutoTokenRefresh: true,
 	})
 
 	client_id := os.Getenv("INFISICAL_CLIENT_ID")
