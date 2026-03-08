@@ -46,6 +46,7 @@ type tutorialCanonicalPrompt struct {
 	ResponseContract      string            `yaml:"response_contract"`
 	SessionKindAddenda    map[string]string `yaml:"session_kind_addenda"`
 	TaskAddenda           map[string]string `yaml:"task_addenda"`
+	DifficultyAddenda     map[string]string `yaml:"difficulty_addenda"`
 	RepairVsExerciseRule  string            `yaml:"repair_vs_exercise_rule"`
 	EvidenceRules         string            `yaml:"evidence_rules"`
 	PatternLexicon        string            `yaml:"pattern_lexicon"`
@@ -271,6 +272,7 @@ type TutorialAssembleParams struct {
 	TutorialTitle      string
 	SessionKind        string // e.g. "diagnostic", "extended"
 	TaskMode           string // e.g. "review_only", "problemset_generation"
+	Difficulty         string // e.g. "beginner", "intermediate", "advanced"
 	WeekOf             string
 	Artifacts          string
 	PriorDiagnostics   string
@@ -324,6 +326,12 @@ func (a *TutorialAssembler) AssembleTutorial(p TutorialAssembleParams) ([]Messag
 		sb.WriteString(strings.TrimSpace(taskText))
 	}
 
+	// 4a. difficulty_addendum (injected after task mode, before evidence rules)
+	if diffText := a.canonical.DifficultyAddenda[difficultyToAddendumKey(p.Difficulty)]; diffText != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(strings.TrimSpace(diffText))
+	}
+
 	// 5. evidence_rules
 	if a.canonical.EvidenceRules != "" {
 		sb.WriteString("\n\n")
@@ -365,6 +373,20 @@ func (a *TutorialAssembler) AssembleTutorial(p TutorialAssembleParams) ([]Messag
 }
 
 // ── tutorial helpers ──────────────────────────────────────────────────────────
+
+// difficultyToAddendumKey maps tutorial difficulty values to canonical.yml difficulty_addenda keys.
+func difficultyToAddendumKey(difficulty string) string {
+	switch difficulty {
+	case "beginner":
+		return "basic"
+	case "intermediate":
+		return "standard"
+	case "advanced":
+		return "rigorous"
+	default:
+		return ""
+	}
+}
 
 func (a *TutorialAssembler) interpolateTutorialHeader(p TutorialAssembleParams) string {
 	return strings.TrimSpace(strings.NewReplacer(

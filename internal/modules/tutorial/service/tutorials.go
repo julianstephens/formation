@@ -550,6 +550,22 @@ func (s *TutorialTurnService) SubmitTutorialTurn(
 		return nil, &ErrSessionTerminalError{Status: string(sess.Status)}
 	}
 
+	// Parse and validate slash commands before storing the turn.
+	cmd, err := parseAndValidateTutorialCommand(text, sess)
+	if err != nil {
+		return nil, err
+	}
+	// If /problem-set command, ensure no problem set already exists for this session.
+	if cmd == tutorialCommandProblemSet {
+		existing, psErr := s.repo.GetProblemSetBySession(ctx, sessionID, ownerSub)
+		if psErr == nil && existing != nil {
+			return nil, &ValidationError{
+				Field:   "text",
+				Message: "a problem set already exists for this session; delete it before generating a new one",
+			}
+		}
+	}
+
 	// Create the user turn.
 	userTurn := domain.TutorialTurn{
 		SessionID: sessionID,
@@ -633,16 +649,22 @@ func (s *TutorialTurnService) SubmitTutorialTurn(
 		sessionKind = "diagnostic" // Default to diagnostic
 	}
 
-	// Determine task mode based on session kind and presence of prior problem set
+	// week_of is always the Sunday of the week in which the session started.
+	weekOf := sundayOfWeek(sess.StartedAt)
+
+	// Determine task mode.
+	// A /problem-set command always forces generation mode; otherwise auto-detect.
 	taskMode := "review_only"
-	weekOf := sess.StartedAt.Truncate(24 * time.Hour)
 
 	var previousProblemSet *domain.ProblemSet
 	var priorDiagnosticsSummary string
 	var problemSetResponseText string
 
-	// Load previous problem set if this is an extended session
-	if sess.Kind == domain.TutorialSessionKindExtended {
+	if cmd == tutorialCommandProblemSet {
+		// Explicit command: always generate a new problem set.
+		taskMode = "problemset_generation"
+	} else if sess.Kind == domain.TutorialSessionKindExtended {
+		// Load previous problem set if this is an extended session
 		previousProblemSet, err = s.diagnosticSvc.GetPreviousProblemSet(ctx, sess.TutorialID, ownerSub, weekOf)
 		if err != nil {
 			logger := observability.LoggerFromContext(ctx)
@@ -705,6 +727,7 @@ func (s *TutorialTurnService) SubmitTutorialTurn(
 		TutorialTitle:      tutorial.Title,
 		SessionKind:        sessionKind,
 		TaskMode:           taskMode,
+		Difficulty:         tutorial.Difficulty,
 		WeekOf:             weekOf.Format("2006-01-02"),
 		Artifacts:          artifactsText,
 		PriorDiagnostics:   priorDiagnosticsSummary,
@@ -1062,4 +1085,59 @@ func formatProblemSet(ps domain.ProblemSet) string {
 	}
 
 	return sb.String()
+}
+
+// ── Command parsing ────────────────────────────────────────────────────────────
+
+// tutorialCommand identifies a recognized slash command in a tutorial turn.
+type tutorialCommand int
+
+const (
+	tutorialCommandNone       tutorialCommand = iota
+	tutorialCommandProblemSet                 // /problem-set
+)
+
+// parseAndValidateTutorialCommand parses a slash command from text and validates
+// it against the current session state. Returns tutorialCommandNone if text is
+// not a slash command, or a ValidationError if the command is rejected.
+func parseAndValidateTutorialCommand(text string, sess *domain.TutorialSession) (tutorialCommand, error) {
+	trimmed := strings.TrimSpace(text)
+	if !strings.HasPrefix(trimmed, "/") {
+		return tutorialCommandNone, nil
+	}
+
+	// Extract the command token (first whitespace-delimited word).
+	fields := strings.Fields(trimmed)
+	if len(fields) == 0 {
+		// A bare "/" with nothing following it is not a valid command.
+		return tutorialCommandNone, &ValidationError{
+			Field:   "text",
+			Message: "invalid command: missing command name after /",
+		}
+	}
+	token := fields[0]
+	switch token {
+	case "/problem-set":
+		if sess.Kind != domain.TutorialSessionKindExtended {
+			return tutorialCommandNone, &ValidationError{
+				Field:   "text",
+				Message: "/problem-set is only available in extended tutorial sessions",
+			}
+		}
+		return tutorialCommandProblemSet, nil
+	default:
+		return tutorialCommandNone, &ValidationError{
+			Field:   "text",
+			Message: fmt.Sprintf("unknown command: %s", token),
+		}
+	}
+}
+
+// sundayOfWeek returns the date of the Sunday that begins the ISO week containing t (UTC).
+// If t is already a Sunday, it returns t's date at midnight UTC.
+func sundayOfWeek(t time.Time) time.Time {
+	t = t.UTC()
+	daysFromSunday := int(t.Weekday()) // time.Sunday == 0
+	sunday := t.AddDate(0, 0, -daysFromSunday)
+	return time.Date(sunday.Year(), sunday.Month(), sunday.Day(), 0, 0, 0, 0, time.UTC)
 }
