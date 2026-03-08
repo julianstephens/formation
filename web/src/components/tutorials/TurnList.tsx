@@ -5,14 +5,27 @@ import { Box, HStack, Spinner, Text, VStack } from "@chakra-ui/react";
 export const TutorialTurnList = ({
   turns,
   streamingTurns,
+  failedTurns,
   bottomRef,
 }: {
   turns: TutorialTurn[];
   streamingTurns: Map<string, string>;
+  failedTurns: Set<string>;
   bottomRef: React.RefObject<HTMLDivElement | null>;
 }) => {
+  // Show thinking spinner if: 
+  // 1. There are active streaming turns (agent is currently responding), OR
+  // 2. Last turn is from user (waiting for agent response), OR
+  // 3. Last turn is a recent agent turn (likely still streaming if created < 60s ago)
+  const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
+  const isRecentAgentTurn = lastTurn &&
+    lastTurn.speaker === "agent" &&
+    (Date.now() - new Date(lastTurn.created_at).getTime()) < 60000; // 60 seconds
+
   const agentThinking =
-    turns.length > 0 && turns[turns.length - 1].speaker === "user";
+    streamingTurns.size > 0 ||
+    (lastTurn && lastTurn.speaker === "user") ||
+    isRecentAgentTurn;
 
   return (
     <Box
@@ -38,9 +51,11 @@ export const TutorialTurnList = ({
 
               return (
                 <ChatMessage
+                  key={t.id}
                   role={isUser ? "user" : "agent"}
                   content={isStreaming ? streamingText : displayText}
                   timestamp={new Date(t.created_at).toLocaleTimeString()}
+                  failed={failedTurns.has(t.id)}
                 />
                 // <Box
                 //     key={t.id}

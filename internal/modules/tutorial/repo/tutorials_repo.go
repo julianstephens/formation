@@ -363,11 +363,11 @@ func (r *TutorialRepo) CreateTutorialTurn(
 	}
 
 	const q = `
-		INSERT INTO tutorial_turns (session_id, speaker, text)
-		VALUES ($1, $2, $3)
-		RETURNING id, session_id, speaker, text, created_at`
+		INSERT INTO tutorial_turns (session_id, speaker, text, failed)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, session_id, speaker, text, failed, created_at`
 
-	row := r.Pool.QueryRow(ctx, q, sessionID, turn.Speaker, turn.Text)
+	row := r.Pool.QueryRow(ctx, q, sessionID, turn.Speaker, turn.Text, turn.Failed)
 	return scanTutorialTurn(row)
 }
 
@@ -387,7 +387,7 @@ func (r *TutorialRepo) ListTutorialTurns(
 	}
 
 	const q = `
-		SELECT id, session_id, speaker, text, created_at
+		SELECT id, session_id, speaker, text, failed, created_at
 		FROM tutorial_turns
 		WHERE session_id = $1
 		ORDER BY created_at ASC`
@@ -436,9 +436,62 @@ func (r *TutorialRepo) UpdateTutorialTurn(
 		UPDATE tutorial_turns
 		SET text = $1
 		WHERE id = $2 AND session_id = $3
-		RETURNING id, session_id, speaker, text, created_at`
+		RETURNING id, session_id, speaker, text, failed, created_at`
 
 	row := r.Pool.QueryRow(ctx, q, newText, turnID, sessionID)
+	return scanTutorialTurn(row)
+}
+
+// DeleteTutorialTurn removes a turn from the database.
+// This is used to clean up empty agent turns when agent calls fail.
+func (r *TutorialRepo) DeleteTutorialTurn(
+	ctx context.Context,
+	turnID, sessionID, ownerSub string,
+) error {
+	// First verify the session exists and the owner matches.
+	const checkQ = `SELECT 1 FROM tutorial_sessions WHERE id = $1 AND owner_sub = $2`
+	var exists int
+	if err := r.Pool.QueryRow(ctx, checkQ, sessionID, ownerSub).Scan(&exists); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return repo.ErrNotFound
+		}
+		return fmt.Errorf("check tutorial session ownership: %w", err)
+	}
+
+	const q = `DELETE FROM tutorial_turns WHERE id = $1 AND session_id = $2`
+	cmdTag, err := r.Pool.Exec(ctx, q, turnID, sessionID)
+	if err != nil {
+		return fmt.Errorf("delete tutorial turn: %w", err)
+	}
+	if cmdTag.RowsAffected() == 0 {
+		return repo.ErrNotFound
+	}
+	return nil
+}
+
+// MarkTutorialTurnFailed marks a turn as failed.
+// This is used when a user turn fails to receive an agent response.
+func (r *TutorialRepo) MarkTutorialTurnFailed(
+	ctx context.Context,
+	turnID, sessionID, ownerSub string,
+) (*domain.TutorialTurn, error) {
+	// First verify the session exists and the owner matches.
+	const checkQ = `SELECT 1 FROM tutorial_sessions WHERE id = $1 AND owner_sub = $2`
+	var exists int
+	if err := r.Pool.QueryRow(ctx, checkQ, sessionID, ownerSub).Scan(&exists); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, repo.ErrNotFound
+		}
+		return nil, fmt.Errorf("check tutorial session ownership: %w", err)
+	}
+
+	const q = `
+		UPDATE tutorial_turns
+		SET failed = TRUE
+		WHERE id = $1 AND session_id = $2
+		RETURNING id, session_id, speaker, text, failed, created_at`
+
+	row := r.Pool.QueryRow(ctx, q, turnID, sessionID)
 	return scanTutorialTurn(row)
 }
 
@@ -833,7 +886,7 @@ type tutorialTurnScanner interface {
 func scanTutorialTurn(row tutorialTurnScanner) (*domain.TutorialTurn, error) {
 	var t domain.TutorialTurn
 	err := row.Scan(
-		&t.ID, &t.SessionID, &t.Speaker, &t.Text, &t.CreatedAt,
+		&t.ID, &t.SessionID, &t.Speaker, &t.Text, &t.Failed, &t.CreatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

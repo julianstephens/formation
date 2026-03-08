@@ -34,7 +34,7 @@ import { useParams } from "react-router-dom";
 // ── Main component ────────────────────────────────────────────────────────────
 
 const TutorialSessionRunner = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string; }>();
   console.log("[TutorialSessionRunner] Component rendered, id:", id);
   const api = useApi();
   const unsubscribe = useTutorialSessionEventsUnsubscribe();
@@ -60,13 +60,15 @@ const TutorialSessionRunner = () => {
     new Map(),
   );
 
+  // Failed turns (turn IDs that failed to get agent response)
+  const [failedTurns, setFailedTurns] = useState<Set<string>>(new Set());
+
   // Session lifecycle
   const [completing, setCompleting] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
   const [showCompleteForm, setShowCompleteForm] = useState(false);
 
   // Refs
-  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const notesRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -78,6 +80,14 @@ const TutorialSessionRunner = () => {
       const session = await api.getTutorialSession(id);
       setDetail(session);
       setTurns(session.turns ?? []);
+      // Populate failedTurns from backend data
+      const failed = new Set<string>();
+      for (const turn of session.turns ?? []) {
+        if (turn.failed) {
+          failed.add(turn.id);
+        }
+      }
+      setFailedTurns(failed);
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : String(e));
     } finally {
@@ -106,6 +116,10 @@ const TutorialSessionRunner = () => {
       setTurns((prev) =>
         prev.some((t) => t.id === turn.id) ? prev : [...prev, turn],
       );
+      // Mark turn as failed if the backend indicates it
+      if (turn.failed) {
+        setFailedTurns((prev) => new Set(prev).add(turn.id));
+      }
     },
     onAgentResponseChunk: ({ turn_id, chunk, is_final }) => {
       console.log("[TutorialSessionRunner] onAgentResponseChunk callback:", {
@@ -141,9 +155,9 @@ const TutorialSessionRunner = () => {
       setDetail((prev) =>
         prev
           ? {
-              ...prev,
-              artifacts: prev.artifacts.filter((a) => a.id !== artifact_id),
-            }
+            ...prev,
+            artifacts: prev.artifacts.filter((a) => a.id !== artifact_id),
+          }
           : prev,
       );
     },
@@ -151,7 +165,19 @@ const TutorialSessionRunner = () => {
       setDetail((prev) => (prev ? { ...prev, status: "complete" } : prev));
       if (id) unsubscribe(id);
     },
-    onError: ({ message }) => setStreamError(message),
+    onError: ({ message }) => {
+      setStreamError(message);
+      // Mark the last user turn as failed and clear any streaming state
+      setTurns((prev) => {
+        const lastUserTurn = [...prev].reverse().find((t) => t.speaker === "user");
+        if (lastUserTurn) {
+          setFailedTurns((failed) => new Set(failed).add(lastUserTurn.id));
+        }
+        return prev;
+      });
+      // Clear streaming state since the agent call failed
+      setStreamingTurns(new Map());
+    },
     onConnectionError: (e) => {
       console.warn("[SSE] tutorial connection error", e);
     },
@@ -159,13 +185,10 @@ const TutorialSessionRunner = () => {
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
-  const handleSubmitTurn = async () => {
-    if (!id || !composerRef.current) return;
-    const text = composerRef.current.value.trim();
-    if (!text) return;
+  const handleSubmitTurn = async (text: string) => {
+    if (!id || !text) return;
 
-    // Clear input and add optimistic user turn immediately
-    composerRef.current.value = "";
+    // Add optimistic user turn immediately
     const optimisticId = `optimistic-${Date.now()}`;
     const optimisticUserTurn: TutorialTurn = {
       id: optimisticId,
@@ -240,9 +263,9 @@ const TutorialSessionRunner = () => {
       setDetail((prev) =>
         prev
           ? {
-              ...prev,
-              artifacts: prev.artifacts.filter((a) => a.id !== artifact.id),
-            }
+            ...prev,
+            artifacts: prev.artifacts.filter((a) => a.id !== artifact.id),
+          }
           : null,
       );
     } catch (e) {
@@ -387,11 +410,12 @@ const TutorialSessionRunner = () => {
           <TutorialTurnList
             turns={turns}
             streamingTurns={streamingTurns}
+            failedTurns={failedTurns}
             bottomRef={bottomRef}
           />
         </Box>
         <ChatInput
-          onSend={() => void handleSubmitTurn()}
+          onSend={(message) => void handleSubmitTurn(message)}
           disabled={isTerminal}
         />
 

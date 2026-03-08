@@ -1,14 +1,15 @@
 import { Box, Flex, Icon, Text } from "@chakra-ui/react";
-import { LuBot, LuUser } from "react-icons/lu";
+import { LuBot, LuCircleAlert, LuUser } from "react-icons/lu";
 import "./chat.css";
 
 interface ChatMessageProps {
   role: "user" | "agent";
   content: string;
   timestamp?: string;
+  failed?: boolean;
 }
 
-export function ChatMessage({ role, content, timestamp }: ChatMessageProps) {
+export function ChatMessage({ role, content, timestamp, failed }: ChatMessageProps) {
   const isUser = role === "user";
 
   return (
@@ -36,11 +37,20 @@ export function ChatMessage({ role, content, timestamp }: ChatMessageProps) {
               {timestamp}
             </Box>
           )}
+          {failed && (
+            <Box display="flex" alignItems="center" gap={1} color="#ef4444" fontSize="xs">
+              <Icon as={LuCircleAlert} w={3} h={3} />
+              <Box as="span">Failed</Box>
+            </Box>
+          )}
         </Box>
         <Box
           rounded="lg"
           p={4}
           bg={isUser ? "rgba(30, 58, 138, 0.2)" : "rgba(6, 95, 70, 0.2)"}
+          borderWidth={failed ? "2px" : "0"}
+          borderColor={failed ? "#ef4444" : "transparent"}
+          opacity={failed ? 0.8 : 1}
         >
           <Text color="white" whiteSpace="pre-wrap" lineHeight="relaxed">
             {content}

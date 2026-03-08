@@ -571,6 +571,20 @@ func (s *TutorialTurnService) SubmitTutorialTurn(
 
 	// If no agent is configured, return just the user turn.
 	if s.agent == nil || s.assembler == nil {
+		logger := observability.LoggerFromContext(ctx)
+		logger.Warn("agent not configured, skipping agent response",
+			"session_id", sessionID,
+		)
+		// Mark the user turn as failed
+		if _, markErr := s.repo.MarkTutorialTurnFailed(ctx, created.ID, sessionID, ownerSub); markErr != nil {
+			logger.Error("failed to mark user turn as failed",
+				"session_id", sessionID,
+				"turn_id", created.ID,
+				"error", markErr.Error(),
+			)
+		}
+		// Publish error to UI via SSE
+		s.hub.PublishError(sessionID, "Agent is not configured. Please check server configuration.")
 		return result, nil
 	}
 
@@ -718,8 +732,7 @@ func (s *TutorialTurnService) SubmitTutorialTurn(
 		return result, fmt.Errorf("create agent turn: %w", err)
 	}
 
-	// Emit initial turn_added SSE for agent turn.
-	s.hub.PublishTutorialTurnAdded(agentCreated)
+	// Note: We emit turn_added SSE for agent turn only after confirming agent call succeeds
 
 	// Call the agent with or without streaming.
 	var agentText string
@@ -730,6 +743,10 @@ func (s *TutorialTurnService) SubmitTutorialTurn(
 			"session_id", sessionID,
 			"turn_id", agentCreated.ID,
 		)
+
+		// Emit initial turn_added SSE for agent turn before streaming starts.
+		s.hub.PublishTutorialTurnAdded(agentCreated)
+
 		// Use streaming mode: publish chunks as they arrive.
 		chunkCount := 0
 		chunkFn := func(chunk string) error {
@@ -756,6 +773,24 @@ func (s *TutorialTurnService) SubmitTutorialTurn(
 				"turn_id", agentCreated.ID,
 				"error", err.Error(),
 			)
+			// Delete the empty agent turn
+			if delErr := s.repo.DeleteTutorialTurn(ctx, agentCreated.ID, sessionID, ownerSub); delErr != nil {
+				logger.Error("failed to delete empty agent turn",
+					"session_id", sessionID,
+					"turn_id", agentCreated.ID,
+					"error", delErr.Error(),
+				)
+			}
+			// Mark the user turn as failed
+			if _, markErr := s.repo.MarkTutorialTurnFailed(ctx, created.ID, sessionID, ownerSub); markErr != nil {
+				logger.Error("failed to mark user turn as failed",
+					"session_id", sessionID,
+					"turn_id", created.ID,
+					"error", markErr.Error(),
+				)
+			}
+			// Publish error to UI via SSE
+			s.hub.PublishError(sessionID, fmt.Sprintf("Agent call failed: %v", err))
 			return result, nil // Return user turn even if agent call fails
 		}
 	} else {
@@ -767,8 +802,29 @@ func (s *TutorialTurnService) SubmitTutorialTurn(
 				"turn_id", agentCreated.ID,
 				"error", err.Error(),
 			)
+			// Delete the empty agent turn
+			if delErr := s.repo.DeleteTutorialTurn(ctx, agentCreated.ID, sessionID, ownerSub); delErr != nil {
+				logger.Error("failed to delete empty agent turn",
+					"session_id", sessionID,
+					"turn_id", agentCreated.ID,
+					"error", delErr.Error(),
+				)
+			}
+			// Mark the user turn as failed
+			if _, markErr := s.repo.MarkTutorialTurnFailed(ctx, created.ID, sessionID, ownerSub); markErr != nil {
+				logger.Error("failed to mark user turn as failed",
+					"session_id", sessionID,
+					"turn_id", created.ID,
+					"error", markErr.Error(),
+				)
+			}
+			// Publish error to UI via SSE
+			s.hub.PublishError(sessionID, fmt.Sprintf("Agent call failed: %v", err))
 			return result, nil // Return user turn even if agent call fails
 		}
+
+		// Emit turn_added SSE for agent turn now that we have the response.
+		s.hub.PublishTutorialTurnAdded(agentCreated)
 	}
 
 	// ── Parse and persist diagnostic entries ──
@@ -858,6 +914,32 @@ func (s *TutorialTurnService) SubmitTutorialTurn(
 	// Strip the diagnostic and problem set JSON blocks from the agent response before storing
 	agentTextStripped := StripDiagnosticBlock(agentText)
 	agentTextStripped = StripProblemSetBlock(agentTextStripped)
+
+	// If the stripped text is empty, delete the agent turn, mark user turn as failed, and return
+	if strings.TrimSpace(agentTextStripped) == "" {
+		logger.Warn("agent response is empty after stripping blocks",
+			"session_id", sessionID,
+			"turn_id", agentCreated.ID,
+		)
+		// Delete the empty agent turn
+		if delErr := s.repo.DeleteTutorialTurn(ctx, agentCreated.ID, sessionID, ownerSub); delErr != nil {
+			logger.Error("failed to delete empty agent turn",
+				"session_id", sessionID,
+				"turn_id", agentCreated.ID,
+				"error", delErr.Error(),
+			)
+		}
+		// Mark the user turn as failed
+		if _, markErr := s.repo.MarkTutorialTurnFailed(ctx, created.ID, sessionID, ownerSub); markErr != nil {
+			logger.Error("failed to mark user turn as failed",
+				"session_id", sessionID,
+				"turn_id", created.ID,
+				"error", markErr.Error(),
+			)
+		}
+		s.hub.PublishError(sessionID, "Agent response was empty")
+		return result, nil
+	}
 
 	// Update pattern statuses after extended review
 	if sess.Kind == domain.TutorialSessionKindExtended {

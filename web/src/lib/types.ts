@@ -140,6 +140,7 @@ export interface TutorialTurn {
   session_id: string;
   speaker: TutorialTurnSpeaker;
   text: string;
+  failed: boolean;
   created_at: string;
 }
 

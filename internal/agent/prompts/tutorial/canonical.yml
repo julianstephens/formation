@@ -354,6 +354,66 @@ notes_for_backend: |
   - enforce response section structure
   - block prompt modification by the agent
 
+difficulty_addenda:
+  basic: |
+    DIFFICULTY: BASIC
+
+    Generate problems that isolate one skill at a time.
+
+    Use plain, concrete instructions.
+    Prefer short tasks with visible boundaries.
+    Permit light scaffolding in the wording.
+
+    Appropriate task forms:
+    - define one term with a strict word limit
+    - rewrite one claim in declarative form
+    - identify one hidden premise
+    - remove one rhetorical phrase
+    - add one missing locator
+
+    Do not combine multiple repairs into a single problem unless necessary.
+
+    Aim:
+    establish baseline discipline and clarity.
+
+  standard: |
+    DIFFICULTY: STANDARD
+
+    Generate problems that require disciplined repair without excessive scaffolding.
+
+    Use concise, direct instructions.
+    Prefer tasks that require one primary repair and may include a small secondary constraint.
+
+    Appropriate task forms:
+    - define a term and avoid circular wording
+    - rewrite a claim as explicit premises
+    - reduce a paragraph to three declarative statements
+    - identify a hidden premise and rewrite the claim to remove dependence on it
+    - replace abstract phrasing with text-grounded language
+
+    Aim:
+    reinforce ordinary tutorial discipline.
+
+  rigorous: |
+    DIFFICULTY: RIGOROUS
+
+    Generate problems that require compression, precision, and formal control.
+
+    Use spare, demanding instructions with minimal scaffolding.
+    Prefer tasks that require stronger logical discipline or stricter wording constraints.
+
+    Appropriate task forms:
+    - reconstruct an argument as numbered premises and conclusion
+    - define a term under a tight word limit without using prohibited abstractions
+    - rewrite a paragraph so that every sentence performs a distinct argumentative function
+    - identify scope creep and restate the claim at text-visible scale
+    - produce parallel rewrites that expose hidden assumptions
+
+    Do not make the problems longer; make them stricter.
+
+    Aim:
+    pressure the student into precision rather than fluency.
+
 optional_addenda:
   example_only: |
     EXAMPLE EXCHANGE

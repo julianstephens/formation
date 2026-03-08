@@ -126,5 +126,6 @@ type TutorialTurn struct {
 	SessionID string    `json:"session_id"`
 	Speaker   string    `json:"speaker"` // "user" | "agent" | "system"
 	Text      string    `json:"text"`
+	Failed    bool      `json:"failed"` // true if this turn failed to get a response
 	CreatedAt time.Time `json:"created_at"`
 }
