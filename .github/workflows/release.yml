@@ -118,6 +118,7 @@ jobs:
           COOLIFY_ENDPOINT_URL: ${{ secrets.COOLIFY_ENDPOINT_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           MANIFEST_PATH: ./coolify.manifest.json
+          COOLIFY_ENV_API: ${{ secrets.COOLIFY_ENV_API }}
           LOG_LEVEL: debug
         run: |
           if [ -z "$COOLIFY_ENDPOINT_URL" ] || [ -z "$COOLIFY_TOKEN" ]; then
