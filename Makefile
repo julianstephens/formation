@@ -1,4 +1,4 @@
-.PHONY: build test lint fmt clean help install check
+.PHONY: build test lint fmt clean help install check release 
 
 # Variables
 BINARY_NAME=formation
@@ -60,6 +60,11 @@ lint:
 	@echo "Linting complete"
 
 check: fmt lint test
+
+release: 
+	@echo "Release process started..."
+	@python scripts/release.py
+	@echo "Release process completed"
 
 ## clean: Clean build artifacts
 clean:
