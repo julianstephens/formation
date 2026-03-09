@@ -654,7 +654,7 @@ func (r *TutorialRepo) CreateProblemSet(
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, tutorial_id, owner_sub, week_of, 
 		          COALESCE(assigned_from_session_id::text, ''), status, tasks,
-		          COALESCE(review_notes, ''), created_at, updated_at`
+		          COALESCE(review_notes, ''), reviewed_at, created_at, updated_at`
 
 	row := r.Pool.QueryRow(ctx, q,
 		ps.TutorialID, ownerSub, ps.WeekOf, nvlTutStr(ps.AssignedFromSessionID),
@@ -671,7 +671,7 @@ func (r *TutorialRepo) GetProblemSetByID(
 	const q = `
 		SELECT id, tutorial_id, owner_sub, week_of,
 		       COALESCE(assigned_from_session_id::text, ''), status, tasks,
-		       COALESCE(review_notes, ''), created_at, updated_at
+		       COALESCE(review_notes, ''), reviewed_at, created_at, updated_at
 		FROM problem_sets
 		WHERE id = $1 AND owner_sub = $2`
 
@@ -686,7 +686,7 @@ func (r *TutorialRepo) GetProblemSetByWeek(
 	const q = `
 		SELECT id, tutorial_id, owner_sub, week_of,
 		       COALESCE(assigned_from_session_id::text, ''), status, tasks,
-		       COALESCE(review_notes, ''), created_at, updated_at
+		       COALESCE(review_notes, ''), reviewed_at, created_at, updated_at
 		FROM problem_sets
 		WHERE tutorial_id = $1 AND owner_sub = $2 AND week_of = $3`
 
@@ -702,7 +702,7 @@ func (r *TutorialRepo) GetProblemSetBySession(
 	const q = `
 		SELECT id, tutorial_id, owner_sub, week_of,
 		       COALESCE(assigned_from_session_id::text, ''), status, tasks,
-		       COALESCE(review_notes, ''), created_at, updated_at
+		       COALESCE(review_notes, ''), reviewed_at, created_at, updated_at
 		FROM problem_sets
 		WHERE assigned_from_session_id = $1 AND owner_sub = $2 AND status != 'deleted'`
 
@@ -718,7 +718,7 @@ func (r *TutorialRepo) ListProblemSets(
 	const q = `
 		SELECT id, tutorial_id, owner_sub, week_of,
 		       COALESCE(assigned_from_session_id::text, ''), status, tasks,
-		       COALESCE(review_notes, ''), created_at, updated_at
+		       COALESCE(review_notes, ''), reviewed_at, created_at, updated_at
 		FROM problem_sets
 		WHERE tutorial_id = $1 AND owner_sub = $2
 		ORDER BY week_of DESC`
@@ -802,10 +802,132 @@ func (r *TutorialRepo) UpdateProblemSetStatus(
 		WHERE id = $1 AND owner_sub = $2
 		RETURNING id, tutorial_id, owner_sub, week_of,
 		          COALESCE(assigned_from_session_id, ''), status, tasks,
-		          COALESCE(review_notes, ''), created_at, updated_at`
+		          COALESCE(review_notes, ''), reviewed_at, created_at, updated_at`
 
 	row := r.Pool.QueryRow(ctx, q, id, ownerSub, status)
 	return scanProblemSet(row)
+}
+
+// MarkProblemSetReviewed sets problem set status to 'reviewed', stamps reviewed_at,
+// and stores the review notes. Returns the updated record.
+func (r *TutorialRepo) MarkProblemSetReviewed(
+	ctx context.Context,
+	id, ownerSub, reviewNotes string,
+) (*domain.ProblemSet, error) {
+	const q = `
+		UPDATE problem_sets
+		SET status = 'reviewed', reviewed_at = now(), review_notes = $3, updated_at = now()
+		WHERE id = $1 AND owner_sub = $2
+		RETURNING id, tutorial_id, owner_sub, week_of,
+		          COALESCE(assigned_from_session_id::text, ''), status, tasks,
+		          COALESCE(review_notes, ''), reviewed_at, created_at, updated_at`
+
+	row := r.Pool.QueryRow(ctx, q, id, ownerSub, nvlTutStr(reviewNotes))
+	return scanProblemSet(row)
+}
+
+// CreateProblemSetReview inserts a review record for a completed problem set.
+func (r *TutorialRepo) CreateProblemSetReview(
+	ctx context.Context,
+	review domain.ProblemSetReview,
+) (*domain.ProblemSetReview, error) {
+	const q = `
+		INSERT INTO problem_set_reviews
+			(problem_set_id, tutorial_session_id, strictness, review_json)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, problem_set_id, tutorial_session_id, strictness, review_json, created_at`
+
+	row := r.Pool.QueryRow(ctx, q,
+		review.ProblemSetID, review.TutorialSessionID,
+		review.Strictness, []byte(review.ReviewJSON))
+	return scanProblemSetReview(row)
+}
+
+// ListArtifactsByProblemSet returns problem_set_response artifacts linked to a problem set.
+func (r *TutorialRepo) ListArtifactsByProblemSet(
+	ctx context.Context,
+	problemSetID, ownerSub string,
+) ([]domain.Artifact, error) {
+	const q = `
+		SELECT id, session_id, owner_sub, kind, title, content,
+		       COALESCE(problem_set_id::text, ''), created_at
+		FROM artifacts
+		WHERE problem_set_id = $1 AND owner_sub = $2 AND kind = 'problem_set_response'
+		ORDER BY created_at`
+
+	rows, err := r.Pool.Query(ctx, q, problemSetID, ownerSub)
+	if err != nil {
+		return nil, fmt.Errorf("list artifacts by problem set: %w", err)
+	}
+	defer rows.Close()
+
+	var result []domain.Artifact
+	for rows.Next() {
+		a, err := scanArtifact(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, *a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list artifacts by problem set iterate: %w", err)
+	}
+	if result == nil {
+		result = []domain.Artifact{}
+	}
+	return result, nil
+}
+
+// GetDiagnosticEntriesByPattern returns all diagnostic entries for a tutorial matching a pattern code.
+func (r *TutorialRepo) GetDiagnosticEntriesByPattern(
+	ctx context.Context,
+	tutorialID, ownerSub, patternCode string,
+) ([]domain.DiagnosticEntry, error) {
+	const q = `
+		SELECT id, tutorial_id, tutorial_session_id, owner_sub, week_of,
+		       pattern_code, severity, status, evidence,
+		       COALESCE(notes, ''), created_at, updated_at
+		FROM diagnostic_entries
+		WHERE tutorial_id = $1 AND owner_sub = $2 AND pattern_code = $3
+		ORDER BY created_at DESC`
+
+	rows, err := r.Pool.Query(ctx, q, tutorialID, ownerSub, patternCode)
+	if err != nil {
+		return nil, fmt.Errorf("get diagnostic entries by pattern: %w", err)
+	}
+	defer rows.Close()
+
+	var result []domain.DiagnosticEntry
+	for rows.Next() {
+		e, err := scanDiagnosticEntry(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, *e)
+	}
+	if result == nil {
+		result = []domain.DiagnosticEntry{}
+	}
+	return result, rows.Err()
+}
+
+// UpdateDiagnosticEntrySeverityByPattern sets the severity for all diagnostic entries
+// matching a tutorial, owner, and pattern code.
+func (r *TutorialRepo) UpdateDiagnosticEntrySeverityByPattern(
+	ctx context.Context,
+	tutorialID, ownerSub, patternCode string,
+	newSeverity int,
+) error {
+	const q = `
+		UPDATE diagnostic_entries
+		SET severity = $4, updated_at = now()
+		WHERE tutorial_id = $1 AND owner_sub = $2 AND pattern_code = $3`
+
+	_, err := r.Pool.Exec(ctx, q, tutorialID, ownerSub, patternCode, newSeverity)
+	if err != nil {
+		return fmt.Errorf("update diagnostic entry severity by pattern: %w", err)
+	}
+	return nil
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -934,13 +1056,34 @@ type problemSetScanner interface {
 	Scan(dest ...any) error
 }
 
+type problemSetReviewScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanProblemSetReview(row problemSetReviewScanner) (*domain.ProblemSetReview, error) {
+	var r domain.ProblemSetReview
+	var rawJSON []byte
+	err := row.Scan(
+		&r.ID, &r.ProblemSetID, &r.TutorialSessionID,
+		&r.Strictness, &rawJSON, &r.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, repo.ErrNotFound
+		}
+		return nil, fmt.Errorf("scan problem set review: %w", err)
+	}
+	r.ReviewJSON = json.RawMessage(rawJSON)
+	return &r, nil
+}
+
 func scanProblemSet(row problemSetScanner) (*domain.ProblemSet, error) {
 	var ps domain.ProblemSet
 	var rawTasks []byte
 	err := row.Scan(
 		&ps.ID, &ps.TutorialID, &ps.OwnerSub, &ps.WeekOf,
 		&ps.AssignedFromSessionID, &ps.Status, &rawTasks,
-		&ps.ReviewNotes, &ps.CreatedAt, &ps.UpdatedAt,
+		&ps.ReviewNotes, &ps.ReviewedAt, &ps.CreatedAt, &ps.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

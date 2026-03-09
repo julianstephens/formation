@@ -257,10 +257,16 @@ task_addenda:
 
     Your task:
 
-    - evaluate the student's responses
-    - determine whether patterns improved
-    - identify remaining issues
+    - evaluate the student's responses to each problem set task
+    - determine whether the targeted reasoning pattern improved, partially improved, remained unresolved, or was answered incorrectly
+    - identify patterns that remain active or have worsened
+    - note any new patterns that emerged that were not previously tracked
     - give one focused direction for the coming week
+
+    Strictness governs how generously you interpret partial evidence of improvement:
+    - lenient: accept tentative improvement as improved
+    - standard: require clear evidence of improvement
+    - rigorous: require consistent, unambiguous improvement across multiple responses
 
     Required sections:
 
@@ -268,6 +274,49 @@ task_addenda:
     2. Progress
     3. Remaining Issues
     4. Next Direction
+
+    STRUCTURED OUTPUT REQUIREMENT
+
+    In addition to your student-facing response, you must emit a structured JSON block
+    that will be parsed by the backend system. This block will be stripped from the
+    student-facing text.
+
+    Format:
+
+    [REVIEW_JSON]
+    {
+      "tasks": [
+        {
+          "position": 1,
+          "required": true,
+          "result": "improved",
+          "pattern_code": "TEXT_DRIFT"
+        }
+      ],
+      "pattern_updates": [
+        {
+          "pattern_code": "TEXT_DRIFT",
+          "status": "improved"
+        }
+      ],
+      "new_patterns": ["UNDEFINED_TERMS"]
+    }
+    [/REVIEW_JSON]
+
+    Rules for structured output:
+
+    - Place the block AFTER your student-facing response
+    - Include one entry in "tasks" for every task in the problem set, in order, using 1-based positions
+    - Valid result values: improved / partial / unresolved / incorrect
+    - "pattern_updates" must contain one entry per distinct pattern_code appearing in the tasks array
+    - For each pattern_code, set status to the worst result across all tasks targeting that pattern:
+      improved > partial > unresolved > incorrect (incorrect is worst)
+    - "new_patterns" lists UPPER_SNAKE_CASE pattern codes not already tracked that emerged during review
+    - Use UPPER_SNAKE_CASE for all pattern codes (e.g., "TEXT_DRIFT", not "Text Drift")
+    - Valid pattern codes: TEXT_DRIFT, UNDEFINED_TERMS, HIDDEN_PREMISES, WEAK_STRUCTURE,
+      RHETORICAL_INFLATION, SCOPE_CREEP, PREMATURE_SYNTHESIS, UNSUPPORTED_CONTRAST,
+      COMPRESSED_INFERENCE, EXPLANATORY_SUBSTITUTION, FRAGMENTED_RECONSTRUCTION
+    - This block is machine-parsed and will not be shown to students
 
 evidence_rules: |
   EVIDENCE RULES
@@ -333,6 +382,7 @@ session_header_template: |
   Session Kind: {{session_kind}}
   Task Mode: {{task_mode}}
   Week Of: {{week_of}}
+  Strictness: {{strictness}}
 
   Artifacts Under Review:
   {{artifacts}}

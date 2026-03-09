@@ -280,6 +280,7 @@ type TutorialAssembleParams struct {
 	SessionKind        string // e.g. "diagnostic", "extended"
 	TaskMode           string // e.g. "review_only", "problemset_generation"
 	Difficulty         string // e.g. "beginner", "intermediate", "advanced"
+	Strictness         string // e.g. "lenient", "standard", "rigorous" — used for problemset_review
 	WeekOf             string
 	Artifacts          string
 	PriorDiagnostics   string
@@ -408,6 +409,7 @@ func (a *TutorialAssembler) interpolateTutorialHeader(p TutorialAssembleParams) 
 		"{{session_kind}}", p.SessionKind,
 		"{{task_mode}}", p.TaskMode,
 		"{{week_of}}", p.WeekOf,
+		"{{strictness}}", p.Strictness,
 		"{{artifacts}}", p.Artifacts,
 		"{{prior_diagnostics}}", p.PriorDiagnostics,
 		"{{previous_problem_set}}", p.PreviousProblemSet,

@@ -19,7 +19,10 @@ export const TutorialTurnList = ({
   const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
 
   const agentThinking =
-    streamingTurns.size > 0 || (lastTurn && lastTurn.speaker === "user");
+    streamingTurns.size > 0 ||
+    (!!lastTurn &&
+      lastTurn.speaker === "user" &&
+      !failedTurns.has(lastTurn.id));
 
   // Find streaming turns that don't have a corresponding turn in the turns array yet
   const streamingOnlyTurnIds = Array.from(streamingTurns.keys()).filter(

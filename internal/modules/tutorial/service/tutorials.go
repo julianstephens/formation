@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -578,6 +579,49 @@ func (s *TutorialTurnService) SubmitTutorialTurn(
 		}
 	}
 
+	// Parse command options for /review-problem-set and run pre-flight validation.
+	var reviewCmdOpts *reviewProblemSetCommandOptions
+	var reviewPrevPS *domain.ProblemSet
+	if cmd == tutorialCommandReviewProblemSet {
+		opts, err := parseReviewProblemSetCommandOptions(text)
+		if err != nil {
+			return nil, err
+		}
+		reviewCmdOpts = &opts
+
+		// Pre-flight: a previous problem set must exist.
+		prevPS, psErr := s.diagnosticSvc.GetPreviousProblemSet(
+			ctx,
+			sess.TutorialID,
+			ownerSub,
+			sundayOfWeek(sess.StartedAt),
+		)
+		if psErr != nil {
+			return nil, fmt.Errorf("check previous problem set: %w", psErr)
+		}
+		if prevPS == nil {
+			return nil, &ValidationError{Field: "text", Message: "no_problem_set_to_review"}
+		}
+		// Pre-flight: reject commit if already reviewed.
+		if reviewCmdOpts.Mode == "commit" && prevPS.ReviewedAt != nil {
+			return nil, &ValidationError{Field: "text", Message: "problem set has already been reviewed"}
+		}
+
+		// Pre-flight: a response artifact must exist to review.
+		responseArts, artsErr := s.repo.ListArtifactsByProblemSet(ctx, prevPS.ID, ownerSub)
+		if artsErr != nil {
+			return nil, fmt.Errorf("check problem set responses: %w", artsErr)
+		}
+		if len(responseArts) == 0 {
+			return nil, &ValidationError{
+				Field:   "text",
+				Message: "no responses to review — submit a problem_set_response artifact first",
+			}
+		}
+
+		reviewPrevPS = prevPS
+	}
+
 	// Create the user turn.
 	userTurn := domain.TutorialTurn{
 		SessionID: sessionID,
@@ -675,6 +719,23 @@ func (s *TutorialTurnService) SubmitTutorialTurn(
 	if cmd == tutorialCommandProblemSet {
 		// Explicit command: always generate a new problem set.
 		taskMode = "problemset_generation"
+	} else if cmd == tutorialCommandReviewProblemSet {
+		// Explicit review command: force review mode and load response artifacts.
+		taskMode = "problemset_review"
+		previousProblemSet = reviewPrevPS
+		if reviewPrevPS != nil {
+			responseArts, artsErr := s.repo.ListArtifactsByProblemSet(ctx, reviewPrevPS.ID, ownerSub)
+			if artsErr != nil {
+				logger := observability.LoggerFromContext(ctx)
+				logger.Error("failed to load problem set response artifacts",
+					"session_id", sessionID,
+					"problem_set_id", reviewPrevPS.ID,
+					"error", artsErr.Error(),
+				)
+			} else if len(responseArts) > 0 {
+				problemSetResponseText = formatProblemSetResponses(responseArts)
+			}
+		}
 	} else if sess.Kind == domain.TutorialSessionKindExtended {
 		// Load previous problem set if this is an extended session
 		previousProblemSet, err = s.diagnosticSvc.GetPreviousProblemSet(ctx, sess.TutorialID, ownerSub, weekOf)
@@ -741,12 +802,19 @@ func (s *TutorialTurnService) SubmitTutorialTurn(
 		promptDifficulty = mapCommandDifficultyToPromptDifficulty(cmdOpts.Difficulty)
 	}
 
+	// Determine strictness for review commands.
+	promptStrictness := ""
+	if reviewCmdOpts != nil {
+		promptStrictness = reviewCmdOpts.Strictness
+	}
+
 	// Assemble the prompt.
 	messages, err := s.assembler.AssembleTutorial(agent.TutorialAssembleParams{
 		TutorialTitle:      tutorial.Title,
 		SessionKind:        sessionKind,
 		TaskMode:           taskMode,
 		Difficulty:         promptDifficulty,
+		Strictness:         promptStrictness,
 		WeekOf:             weekOf.Format("2006-01-02"),
 		Artifacts:          artifactsText,
 		PriorDiagnostics:   priorDiagnosticsSummary,
@@ -979,9 +1047,62 @@ func (s *TutorialTurnService) SubmitTutorialTurn(
 		}
 	}
 
-	// Strip the diagnostic and problem set JSON blocks from the agent response before storing
+	// ── Parse and persist review block (review-problem-set command only) ──
+	if cmd == tutorialCommandReviewProblemSet && reviewPrevPS != nil {
+		reviewBlock, parseErr := ParseReviewJSON(agentText)
+		if parseErr != nil {
+			logger.Error("failed to parse review JSON block",
+				"session_id", sessionID,
+				"error", parseErr.Error(),
+			)
+		} else if reviewBlock == nil {
+			logger.Warn("review command issued but agent response contains no [REVIEW_JSON] block",
+				"session_id", sessionID,
+			)
+		} else {
+			if validateErr := ValidateReviewBlock(reviewBlock, len(reviewPrevPS.Tasks)); validateErr != nil {
+				logger.Error("review block validation failed",
+					"session_id", sessionID,
+					"error", validateErr.Error(),
+				)
+			} else if reviewCmdOpts != nil && reviewCmdOpts.Mode == "commit" {
+				reviewJSONBytes, _ := json.Marshal(reviewBlock)
+				psReview := domain.ProblemSetReview{
+					ProblemSetID:      reviewPrevPS.ID,
+					TutorialSessionID: sessionID,
+					Strictness:        reviewCmdOpts.Strictness,
+					ReviewJSON:        reviewJSONBytes,
+				}
+				if _, createErr := s.repo.CreateProblemSetReview(ctx, psReview); createErr != nil {
+					logger.Error("failed to create problem set review",
+						"session_id", sessionID,
+						"error", createErr.Error(),
+					)
+				} else {
+					if _, markErr := s.repo.MarkProblemSetReviewed(ctx, reviewPrevPS.ID, ownerSub, ""); markErr != nil {
+						logger.Error("failed to mark problem set as reviewed",
+							"session_id", sessionID,
+							"error", markErr.Error(),
+						)
+					}
+					if ledgerErr := s.diagnosticSvc.ApplyReviewLedgerUpdates(
+						ctx, sess.TutorialID, ownerSub, sessionID,
+						reviewBlock.PatternUpdates, reviewBlock.NewPatterns, weekOf,
+					); ledgerErr != nil {
+						logger.Error("failed to apply review ledger updates",
+							"session_id", sessionID,
+							"error", ledgerErr.Error(),
+						)
+					}
+				}
+			}
+		}
+	}
+
+	// Strip the diagnostic, problem set, and review JSON blocks from the agent response before storing
 	agentTextStripped := StripDiagnosticBlock(agentText)
 	agentTextStripped = StripProblemSetBlock(agentTextStripped)
+	agentTextStripped = StripReviewBlock(agentTextStripped)
 
 	// If the stripped text is empty, delete the agent turn, mark user turn as failed, and return
 	if strings.TrimSpace(agentTextStripped) == "" {
@@ -1138,8 +1259,9 @@ func formatProblemSet(ps domain.ProblemSet) string {
 type tutorialCommand int
 
 const (
-	tutorialCommandNone       tutorialCommand = iota
-	tutorialCommandProblemSet                 // /problem-set
+	tutorialCommandNone             tutorialCommand = iota
+	tutorialCommandProblemSet                       // /problem-set
+	tutorialCommandReviewProblemSet                 // /review-problem-set
 )
 
 // problemSetCommandOptions holds parsed options for the /problem-set command.
@@ -1177,6 +1299,14 @@ func parseAndValidateTutorialCommand(text string, sess *domain.TutorialSession) 
 			}
 		}
 		return tutorialCommandProblemSet, nil
+	case "/review-problem-set":
+		if sess.Kind != domain.TutorialSessionKindExtended {
+			return tutorialCommandNone, &ValidationError{
+				Field:   "text",
+				Message: "/review-problem-set is only available in extended tutorial sessions",
+			}
+		}
+		return tutorialCommandReviewProblemSet, nil
 	default:
 		return tutorialCommandNone, &ValidationError{
 			Field:   "text",
@@ -1267,6 +1397,78 @@ func parseProblemSetCommandOptions(text string) (problemSetCommandOptions, error
 	return opts, nil
 }
 
+// reviewProblemSetCommandOptions holds parsed options for the /review-problem-set command.
+type reviewProblemSetCommandOptions struct {
+	Strictness string // "lenient", "standard", or "rigorous"
+	Mode       string // "preview" or "commit"
+}
+
+// parseReviewProblemSetCommandOptions parses options from a /review-problem-set command.
+// Returns default values (strictness=standard, mode=commit) for any unspecified options.
+func parseReviewProblemSetCommandOptions(text string) (reviewProblemSetCommandOptions, error) {
+	opts := reviewProblemSetCommandOptions{
+		Strictness: "standard",
+		Mode:       "commit",
+	}
+
+	fields := strings.Fields(strings.TrimSpace(text))
+	if len(fields) == 0 || fields[0] != "/review-problem-set" {
+		return opts, fmt.Errorf("text is not a /review-problem-set command")
+	}
+
+	for i := 1; i < len(fields); i++ {
+		opt := fields[i]
+		if !strings.HasPrefix(opt, "/") {
+			continue
+		}
+
+		optName := opt[1:]
+		switch optName {
+		case "strictness":
+			if i+1 >= len(fields) {
+				return opts, &ValidationError{
+					Field:   "text",
+					Message: "/strictness option requires a value: lenient, standard, or rigorous",
+				}
+			}
+			i++
+			strictness := fields[i]
+			if strictness != "lenient" && strictness != "standard" && strictness != "rigorous" {
+				return opts, &ValidationError{
+					Field:   "text",
+					Message: fmt.Sprintf("invalid strictness: %s (must be lenient, standard, or rigorous)", strictness),
+				}
+			}
+			opts.Strictness = strictness
+
+		case "mode":
+			if i+1 >= len(fields) {
+				return opts, &ValidationError{
+					Field:   "text",
+					Message: "/mode option requires a value: preview or commit",
+				}
+			}
+			i++
+			mode := fields[i]
+			if mode != "preview" && mode != "commit" {
+				return opts, &ValidationError{
+					Field:   "text",
+					Message: fmt.Sprintf("invalid mode: %s (must be preview or commit)", mode),
+				}
+			}
+			opts.Mode = mode
+
+		default:
+			return opts, &ValidationError{
+				Field:   "text",
+				Message: fmt.Sprintf("unknown /review-problem-set option: /%s", optName),
+			}
+		}
+	}
+
+	return opts, nil
+}
+
 // mapCommandDifficultyToPromptDifficulty maps user-facing difficulty levels to prompt difficulty levels.
 // beginner -> basic, intermediate -> standard, advanced -> rigorous
 func mapCommandDifficultyToPromptDifficulty(cmdDifficulty string) string {
@@ -1280,6 +1482,23 @@ func mapCommandDifficultyToPromptDifficulty(cmdDifficulty string) string {
 	default:
 		return "standard" // fallback to standard
 	}
+}
+
+// formatProblemSetResponses formats problem_set_response artifacts into prompt-ready text.
+func formatProblemSetResponses(arts []domain.Artifact) string {
+	if len(arts) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("PROBLEM SET RESPONSES\n\n")
+	for i, art := range arts {
+		if i > 0 {
+			sb.WriteString("\n\n")
+		}
+		sb.WriteString(fmt.Sprintf("--- Response %d: %s ---\n", i+1, art.Title))
+		sb.WriteString(art.Content)
+	}
+	return sb.String()
 }
 
 // sundayOfWeek returns the date of the Sunday that begins the ISO week containing t (UTC).

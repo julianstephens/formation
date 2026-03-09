@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // ProblemSetTask represents a single exercise in a problem set
 type ProblemSetTask struct {
@@ -21,8 +24,19 @@ type ProblemSet struct {
 	Status                string
 	Tasks                 []ProblemSetTask
 	ReviewNotes           string
+	ReviewedAt            *time.Time
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
+}
+
+// ProblemSetReview stores the structured review output for a completed problem set
+type ProblemSetReview struct {
+	ID                string
+	ProblemSetID      string
+	TutorialSessionID string
+	Strictness        string
+	ReviewJSON        json.RawMessage
+	CreatedAt         time.Time
 }
 
 // ProblemSetPatternLink connects a problem set to the diagnostic entries it addresses

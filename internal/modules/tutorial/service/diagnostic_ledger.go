@@ -327,6 +327,80 @@ func (s *DiagnosticLedgerService) UpdatePatternStatuses(
 	return nil
 }
 
+// ApplyReviewLedgerUpdates adjusts diagnostic entry severities based on the agent's
+// review assessment, and inserts new entries for any newly-observed patterns.
+//
+// Severity rules per update Status:
+//   - "improved"           → max(severity-1, 0) for all entries of the pattern
+//   - "partial"            → no change
+//   - "unresolved"/"incorrect" → severity+1 for all entries of the pattern
+//
+// Each entry in newPatterns is inserted as a fresh DiagnosticEntry (severity=1, active).
+func (s *DiagnosticLedgerService) ApplyReviewLedgerUpdates(
+	ctx context.Context,
+	tutorialID, ownerSub, sessionID string,
+	updates []PatternUpdateInput,
+	newPatterns []string,
+	weekOf time.Time,
+) error {
+	for _, update := range updates {
+		if update.Status == "partial" {
+			continue // no severity change
+		}
+
+		entries, err := s.repo.GetDiagnosticEntriesByPattern(ctx, tutorialID, ownerSub, update.PatternCode)
+		if err != nil {
+			return fmt.Errorf("get diagnostic entries for pattern %s: %w", update.PatternCode, err)
+		}
+		if len(entries) == 0 {
+			continue // pattern not currently tracked — skip
+		}
+
+		// Use the most-recent entry (sorted DESC) as the severity baseline.
+		baseSeverity := entries[0].Severity
+		var newSeverity int
+		switch update.Status {
+		case "improved":
+			newSeverity = baseSeverity - 1
+			if newSeverity < 0 {
+				newSeverity = 0
+			}
+		case "unresolved", "incorrect":
+			newSeverity = baseSeverity + 1
+		default:
+			continue
+		}
+
+		if err := s.repo.UpdateDiagnosticEntrySeverityByPattern(
+			ctx,
+			tutorialID,
+			ownerSub,
+			update.PatternCode,
+			newSeverity,
+		); err != nil {
+			return fmt.Errorf("update severity for pattern %s: %w", update.PatternCode, err)
+		}
+	}
+
+	for _, patternCode := range newPatterns {
+		entry := domain.DiagnosticEntry{
+			TutorialID:        tutorialID,
+			TutorialSessionID: sessionID,
+			OwnerSub:          ownerSub,
+			WeekOf:            weekOf,
+			PatternCode:       domain.DiagnosticPatternCode(patternCode),
+			Severity:          1,
+			Status:            domain.DiagnosticActive,
+			Evidence:          []domain.DiagnosticEvidence{},
+		}
+		if _, err := s.repo.CreateDiagnosticEntry(ctx, ownerSub, entry); err != nil {
+			return fmt.Errorf("create diagnostic entry for new pattern %s: %w", patternCode, err)
+		}
+	}
+
+	return nil
+}
+
 // ── internal helpers ──────────────────────────────────────────────────────────
 
 type patternAgg struct {

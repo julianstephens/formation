@@ -221,9 +221,24 @@ const TutorialSessionRunner = () => {
         return [...withoutOptimistic, ...filtered];
       });
     } catch (e) {
-      // Remove optimistic turn on error
-      setTurns((prev) => prev.filter((t) => t.id !== optimisticId));
-      setTurnError(e instanceof ApiRequestError ? e.message : String(e));
+      // Keep the optimistic turn visible but mark it as failed.
+      setFailedTurns((prev) => new Set(prev).add(optimisticId));
+      if (e instanceof ApiRequestError) {
+        // e.message is the error code (e.g. "validation_error"); the
+        // human-readable detail is nested in e.detail.
+        const body = e.detail as Record<string, unknown> | null | undefined;
+        const details = body?.details as
+          | Record<string, unknown>
+          | null
+          | undefined;
+        const msg =
+          (typeof details?.message === "string" && details.message) ||
+          (typeof body?.message === "string" && body.message) ||
+          e.message;
+        setTurnError(msg);
+      } else {
+        setTurnError(String(e));
+      }
     } finally {
       setSubmittingTurn(false);
     }

@@ -1,8 +1,11 @@
 import type { TutorialSessionKind } from "@/lib/types";
 import { Box, Button, Flex, Icon, Span, Textarea } from "@chakra-ui/react";
-import { type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 import { LuSend } from "react-icons/lu";
+import { COMMANDS } from "./commands";
+import { CommandSuggestions } from "./CommandSuggestions";
 import { ProblemSetCommandBuilder } from "./ProblemSetCommandBuilder";
+import { ReviewProblemSetCommandBuilder } from "./ReviewProblemSetCommandBuilder";
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -19,20 +22,74 @@ export function ChatInput({
 }: ChatInputProps) {
   const [message, setMessage] = useState("");
   const [showCommandBuilder, setShowCommandBuilder] = useState(false);
+  const [showReviewCommandBuilder, setShowReviewCommandBuilder] =
+    useState(false);
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+
+  // Visible slash-command suggestions: active while the user is typing the
+  // command name (starts with "/" and no space yet) and the builder isn't open.
+  const filteredCommands = useMemo(() => {
+    if (
+      showCommandBuilder ||
+      showReviewCommandBuilder ||
+      !message.startsWith("/") ||
+      message.includes(" ")
+    )
+      return [];
+    const query = message.toLowerCase();
+    return COMMANDS.filter((cmd) => {
+      if (cmd.sessionKind && cmd.sessionKind !== sessionKind) return false;
+      return cmd.name.startsWith(query);
+    });
+  }, [message, showCommandBuilder, showReviewCommandBuilder, sessionKind]);
+
+  const showSuggestions = filteredCommands.length > 0;
 
   const handleSubmit = () => {
     if (message.trim() && !disabled) {
       onSend(message.trim());
       setMessage("");
       setShowCommandBuilder(false);
+      setShowReviewCommandBuilder(false);
+      setSelectedCommandIndex(0);
     }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showSuggestions) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedCommandIndex((i) =>
+          Math.min(i + 1, filteredCommands.length - 1),
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedCommandIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Tab" || e.key === "Enter") {
+        e.preventDefault();
+        const selected = filteredCommands[selectedCommandIndex];
+        if (selected) applySuggestion(selected.name);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMessage("");
+        return;
+      }
+    }
+
     // Close command builder on Escape
-    if (e.key === "Escape" && showCommandBuilder) {
+    if (
+      e.key === "Escape" &&
+      (showCommandBuilder || showReviewCommandBuilder)
+    ) {
       e.preventDefault();
       setShowCommandBuilder(false);
+      setShowReviewCommandBuilder(false);
       return;
     }
 
@@ -42,28 +99,49 @@ export function ChatInput({
     }
   };
 
-  const handleMessageChange = (value: string) => {
-    setMessage(value);
-
-    // Show command builder if user types "/problem-set" in an extended session
+  const applyCommandBuilderLogic = (value: string) => {
     const trimmed = value.trim().toLowerCase();
     if (
       sessionKind === "extended" &&
       (trimmed === "/problem-set" || trimmed.startsWith("/problem-set "))
     ) {
       setShowCommandBuilder(true);
+      setShowReviewCommandBuilder(false);
+    } else if (
+      sessionKind === "extended" &&
+      (trimmed === "/review-problem-set" ||
+        trimmed.startsWith("/review-problem-set "))
+    ) {
+      setShowReviewCommandBuilder(true);
+      setShowCommandBuilder(false);
     } else {
       setShowCommandBuilder(false);
+      setShowReviewCommandBuilder(false);
     }
+  };
+
+  const handleMessageChange = (value: string) => {
+    setMessage(value);
+    setSelectedCommandIndex(0);
+    applyCommandBuilderLogic(value);
+  };
+
+  /** Called when the user picks a suggestion via Tab/Enter/click. */
+  const applySuggestion = (commandName: string) => {
+    setMessage(commandName);
+    setSelectedCommandIndex(0);
+    applyCommandBuilderLogic(commandName);
   };
 
   const handleCommandSelect = (command: string) => {
     setMessage(command);
     setShowCommandBuilder(false);
+    setShowReviewCommandBuilder(false);
   };
 
   const handleCommandCancel = () => {
     setShowCommandBuilder(false);
+    setShowReviewCommandBuilder(false);
   };
 
   return (
@@ -74,6 +152,20 @@ export function ChatInput({
             <ProblemSetCommandBuilder
               onSelect={handleCommandSelect}
               onCancel={handleCommandCancel}
+            />
+          )}
+          {showReviewCommandBuilder && (
+            <ReviewProblemSetCommandBuilder
+              onSelect={handleCommandSelect}
+              onCancel={handleCommandCancel}
+            />
+          )}
+          {showSuggestions && (
+            <CommandSuggestions
+              commands={filteredCommands}
+              selectedIndex={selectedCommandIndex}
+              onSelect={applySuggestion}
+              onHoverIndex={setSelectedCommandIndex}
             />
           )}
           <Textarea
@@ -103,7 +195,9 @@ export function ChatInput({
             gap={3}
           >
             <Span color="#666" fontSize="xs">
-              ⌘/Ctrl + Enter to submit
+              {showSuggestions
+                ? "Tab to complete · ↑↓ to navigate · Esc to dismiss"
+                : "⌘/Ctrl + Enter to submit"}
             </Span>
             <Button
               onClick={handleSubmit}
