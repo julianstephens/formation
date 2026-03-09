@@ -36,7 +36,9 @@ export const SelectTutorialDialog = () => {
                 <Spinner size="lg" />
               </Box>
             ) : error ? (
-              <Text color="red.500">{error instanceof Error ? error.message : String(error)}</Text>
+              <Text color="red.500">
+                {error instanceof Error ? error.message : String(error)}
+              </Text>
             ) : tutorials.length === 0 ? (
               <Text color="gray.500">
                 No tutorials available. Create one first!

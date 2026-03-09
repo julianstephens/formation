@@ -53,6 +53,7 @@ export interface SeminarSession {
   id: string;
   seminar_id: string;
   section_label: string;
+  working_question: string;
   mode: string;
   excerpt_text?: string;
   excerpt_hash?: string;
@@ -82,6 +83,7 @@ export interface SeminarSessionDetail extends SeminarSession {
 
 export interface CreateSeminarSessionInput {
   section_label: string;
+  working_question: string;
   mode?: string;
   excerpt_text?: string;
   recon_minutes?: number;

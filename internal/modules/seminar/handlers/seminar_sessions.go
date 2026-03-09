@@ -73,10 +73,11 @@ func (h *SeminarSessionHandler) Create(c *gin.Context) {
 	}
 
 	sess, err := h.svc.Create(c.Request.Context(), ownerSub, seminarID, service.CreateSeminarSessionParams{
-		SectionLabel: req.SectionLabel,
-		Mode:         req.Mode,
-		ExcerptText:  req.ExcerptText,
-		ReconMinutes: req.ReconMinutes,
+		SectionLabel:    req.SectionLabel,
+		WorkingQuestion: req.WorkingQuestion,
+		Mode:            req.Mode,
+		ExcerptText:     req.ExcerptText,
+		ReconMinutes:    req.ReconMinutes,
 	})
 	if err != nil {
 		handleSeminarSessionServiceError(c, err)
@@ -222,20 +223,21 @@ func (h *SeminarSessionHandler) SubmitResidue(c *gin.Context) {
 // toSessionResponse converts a domain.SeminarSession to its HTTP response shape.
 func toSeminarSessionResponse(s domain.SeminarSession) apphttp.SeminarSessionResponse {
 	return apphttp.SeminarSessionResponse{
-		ID:             s.ID,
-		SeminarID:      s.SeminarID,
-		SectionLabel:   s.SectionLabel,
-		Mode:           s.Mode,
-		ExcerptText:    s.ExcerptText,
-		ExcerptHash:    s.ExcerptHash,
-		Status:         s.Status,
-		Phase:          s.Phase,
-		ReconMinutes:   s.ReconMinutes,
-		PhaseStartedAt: s.PhaseStartedAt,
-		PhaseEndsAt:    s.PhaseEndsAt,
-		StartedAt:      s.StartedAt,
-		EndedAt:        s.EndedAt,
-		ResidueText:    s.ResidueText,
+		ID:              s.ID,
+		SeminarID:       s.SeminarID,
+		SectionLabel:    s.SectionLabel,
+		WorkingQuestion: s.WorkingQuestion,
+		Mode:            s.Mode,
+		ExcerptText:     s.ExcerptText,
+		ExcerptHash:     s.ExcerptHash,
+		Status:          s.Status,
+		Phase:           s.Phase,
+		ReconMinutes:    s.ReconMinutes,
+		PhaseStartedAt:  s.PhaseStartedAt,
+		PhaseEndsAt:     s.PhaseEndsAt,
+		StartedAt:       s.StartedAt,
+		EndedAt:         s.EndedAt,
+		ResidueText:     s.ResidueText,
 	}
 }
 

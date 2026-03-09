@@ -22,7 +22,7 @@ const PHASE_LABELS: Record<SeminarSessionPhase, string> = {
 };
 
 export default function SessionReview() {
-  const { id } = useParams<{ id: string; }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const { data: session, isLoading, error } = useSession(id);
@@ -36,7 +36,11 @@ export default function SessionReview() {
   }
 
   if (!session) {
-    return <Text color="red.500">{error instanceof Error ? error.message : "Session not found."}</Text>;
+    return (
+      <Text color="red.500">
+        {error instanceof Error ? error.message : "Session not found."}
+      </Text>
+    );
   }
 
   // Group turns by phase for the readable review layout.

@@ -21,7 +21,6 @@ export function ChatMessage({
   if (role === "system") {
     return (
       <Flex align="center" gap={3} my={3} px={2}>
-        <Box flex="1" h="px" bg="whiteAlpha.200" />
         <Flex
           align="center"
           gap={1.5}
@@ -42,7 +41,6 @@ export function ChatMessage({
             </Text>
           )}
         </Flex>
-        <Box flex="1" h="px" bg="whiteAlpha.200" />
       </Flex>
     );
   }

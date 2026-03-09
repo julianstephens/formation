@@ -5,6 +5,7 @@
  * but uses tutorial-specific endpoints and event types only.
  * Never touches seminar components, seminar contexts, or seminar endpoints.
  */
+/* eslint-disable react-refresh/only-export-components */
 
 import type {
   TutorialArtifactAddedPayload,
@@ -57,6 +58,7 @@ const {
   (sessionId) => `${BASE_URL}/tutorial-sessions/${sessionId}/events`,
   dispatch,
 );
+
 
 export {
   TutorialSessionEventsProvider,

@@ -173,7 +173,11 @@ func TestValidateResidue_missingTensionComponent(t *testing.T) {
 // ── AssertTurnAllowed ─────────────────────────────────────────────────────────
 
 // sessionWith returns a minimal Session for testing AssertTurnAllowed.
-func sessionWith(status domain.SeminarSessionStatus, phase domain.SeminarSessionPhase, endsAt time.Time) *domain.SeminarSession {
+func sessionWith(
+	status domain.SeminarSessionStatus,
+	phase domain.SeminarSessionPhase,
+	endsAt time.Time,
+) *domain.SeminarSession {
 	return &domain.SeminarSession{
 		Status:      status,
 		Phase:       phase,

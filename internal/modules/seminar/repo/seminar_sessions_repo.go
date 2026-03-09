@@ -28,23 +28,28 @@ func NewSeminarSessionRepo(b repo.Base) *SeminarSessionRepo {
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
 // Create inserts a new session and returns the fully-populated record.
-func (r *SeminarSessionRepo) Create(ctx context.Context, ownerSub string, s domain.SeminarSession) (*domain.SeminarSession, error) {
+func (r *SeminarSessionRepo) Create(
+	ctx context.Context,
+	ownerSub string,
+	s domain.SeminarSession,
+) (*domain.SeminarSession, error) {
 	const q = `
 		INSERT INTO seminar_sessions
 			(seminar_id, owner_sub, section_label, mode,
 			 excerpt_text, excerpt_hash, recon_minutes,
-			 phase_started_at, phase_ends_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+			 phase_started_at, phase_ends_at, working_question)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		RETURNING id, seminar_id, owner_sub, section_label, mode,
 		          COALESCE(excerpt_text,''), COALESCE(excerpt_hash,''),
 		          status, phase, recon_minutes,
 		          phase_started_at, phase_ends_at, started_at, ended_at,
-		          COALESCE(residue_text,'')`
+		          COALESCE(residue_text,''), working_question`
 
 	row := r.Pool.QueryRow(ctx, q,
 		s.SeminarID, ownerSub, s.SectionLabel, s.Mode,
 		nvlStr(s.ExcerptText), nvlStr(s.ExcerptHash),
 		s.ReconMinutes, s.PhaseStartedAt, s.PhaseEndsAt,
+		s.WorkingQuestion,
 	)
 	return scanSession(row)
 }
@@ -57,7 +62,7 @@ func (r *SeminarSessionRepo) GetByID(ctx context.Context, id, ownerSub string) (
 		       COALESCE(excerpt_text,''), COALESCE(excerpt_hash,''),
 		       status, phase, recon_minutes,
 		       phase_started_at, phase_ends_at, started_at, ended_at,
-		       COALESCE(residue_text,'')
+		       COALESCE(residue_text,''), working_question
 		FROM seminar_sessions
 		WHERE id = $1 AND owner_sub = $2`
 
@@ -79,7 +84,7 @@ func (r *SeminarSessionRepo) Abandon(ctx context.Context, id, ownerSub string) (
 		          COALESCE(excerpt_text,''), COALESCE(excerpt_hash,''),
 		          status, phase, recon_minutes,
 		          phase_started_at, phase_ends_at, started_at, ended_at,
-		          COALESCE(residue_text,'')`
+		          COALESCE(residue_text,''), working_question`
 
 	row := r.Pool.QueryRow(ctx, q, id, ownerSub)
 	sess, err := scanSession(row)
@@ -97,7 +102,10 @@ func (r *SeminarSessionRepo) Abandon(ctx context.Context, id, ownerSub string) (
 // precondition check without a separate SELECT.
 // Returns repo.ErrNotFound if the session is not in residue_required phase,
 // belongs to another owner, or does not exist.
-func (r *SeminarSessionRepo) SetResidue(ctx context.Context, id, ownerSub, residueText string) (*domain.SeminarSession, error) {
+func (r *SeminarSessionRepo) SetResidue(
+	ctx context.Context,
+	id, ownerSub, residueText string,
+) (*domain.SeminarSession, error) {
 	const q = `
 		UPDATE seminar_sessions
 		SET residue_text = $3,
@@ -111,7 +119,7 @@ func (r *SeminarSessionRepo) SetResidue(ctx context.Context, id, ownerSub, resid
 		          COALESCE(excerpt_text,''), COALESCE(excerpt_hash,''),
 		          status, phase, recon_minutes,
 		          phase_started_at, phase_ends_at, started_at, ended_at,
-		          COALESCE(residue_text,'')`
+		          COALESCE(residue_text,''), working_question`
 
 	row := r.Pool.QueryRow(ctx, q, id, ownerSub, residueText)
 	sess, err := scanSession(row)
@@ -194,13 +202,16 @@ func (r *SeminarSessionRepo) ListTurns(ctx context.Context, sessionID, ownerSub 
 
 // ListBySeminarID returns all sessions for a seminar in reverse-chronological
 // order. Ownership is enforced via the owner_sub column.
-func (r *SeminarSessionRepo) ListBySeminarID(ctx context.Context, seminarID, ownerSub string) ([]domain.SeminarSession, error) {
+func (r *SeminarSessionRepo) ListBySeminarID(
+	ctx context.Context,
+	seminarID, ownerSub string,
+) ([]domain.SeminarSession, error) {
 	const q = `
 		SELECT id, seminar_id, owner_sub, section_label, mode,
 		       COALESCE(excerpt_text,''), COALESCE(excerpt_hash,''),
 		       status, phase, recon_minutes,
 		       phase_started_at, phase_ends_at, started_at, ended_at,
-		       COALESCE(residue_text,'')
+		       COALESCE(residue_text,''), working_question
 		FROM seminar_sessions
 		WHERE seminar_id = $1 AND owner_sub = $2
 		ORDER BY started_at DESC`
@@ -239,7 +250,7 @@ func (r *SeminarSessionRepo) ListInProgress(ctx context.Context) ([]domain.Semin
 		       COALESCE(excerpt_text,''), COALESCE(excerpt_hash,''),
 		       status, phase, recon_minutes,
 		       phase_started_at, phase_ends_at, started_at, ended_at,
-		       COALESCE(residue_text,'')
+		       COALESCE(residue_text,''), working_question
 		FROM seminar_sessions
 		WHERE status = 'in_progress'
 		  AND phase IN ('reconstruction', 'opposition', 'reversal')`
@@ -342,7 +353,7 @@ func (r *SeminarSessionRepo) AdvancePhase(
 		          COALESCE(excerpt_text,''), COALESCE(excerpt_hash,''),
 		          status, phase, recon_minutes,
 		          phase_started_at, phase_ends_at, started_at, ended_at,
-		          COALESCE(residue_text,'')`
+		          COALESCE(residue_text,''), working_question`
 
 	row := tx.QueryRow(ctx, updateQ,
 		sessionID, string(next), string(newStatus), now, newPhaseEndsAt, endedAt,
@@ -395,7 +406,7 @@ func scanSession(row sessionScanner) (*domain.SeminarSession, error) {
 		&status, &phase,
 		&s.ReconMinutes, &s.PhaseStartedAt, &s.PhaseEndsAt,
 		&s.StartedAt, &s.EndedAt,
-		&s.ResidueText,
+		&s.ResidueText, &s.WorkingQuestion,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

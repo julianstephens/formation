@@ -94,7 +94,7 @@ export const SeminarSessionHeader = ({
   return (
     <>
       <HStack
-        id="tutorialSessionHeader"
+        id="seminarSessionHeader"
         mb={4}
         justify="space-between"
         align="start"
@@ -161,7 +161,7 @@ export const SeminarSessionHeader = ({
                         detail.phase === p
                           ? `${capitalizeEachWord(p.replaceAll("_", " "))} ends at ${new Date(detail.phase_ends_at).toLocaleTimeString()}${phaseInfo.secondsRemaining !== null ? ` (${Math.round(phaseInfo.secondsRemaining / 60)} min)` : ""}`
                           : PHASE_DETAILS[detail.phase].order >
-                            PHASE_DETAILS[p as SeminarSessionPhase].order
+                              PHASE_DETAILS[p as SeminarSessionPhase].order
                             ? `${capitalizeEachWord(p.replaceAll("_", " "))} Completed`
                             : `${capitalizeEachWord(p.replaceAll("_", " "))} Pending`
                       }
@@ -170,7 +170,7 @@ export const SeminarSessionHeader = ({
                         detail.phase === p
                           ? phaseProgress
                           : PHASE_DETAILS[detail.phase].order >
-                            PHASE_DETAILS[p as SeminarSessionPhase].order
+                              PHASE_DETAILS[p as SeminarSessionPhase].order
                             ? 100
                             : 0
                       }
@@ -196,7 +196,9 @@ export const SeminarSessionHeader = ({
                 <Icon as={LuBookOpen} w={5} h={5} color="#f59e0b" />
                 <Alert.Title fontSize="xs" fontWeight="bold" color="white">
                   Phase {PHASE_DETAILS[detail.phase].order}:{" "}
-                  <Span textTransform="capitalize">{detail.phase}</Span>
+                  <Span textTransform="capitalize">
+                    {detail.phase.replaceAll("_", " ")}
+                  </Span>
                 </Alert.Title>
               </HStack>
               <Alert.Description fontSize="xs" color="#999">

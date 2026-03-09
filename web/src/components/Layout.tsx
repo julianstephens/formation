@@ -1,7 +1,7 @@
 import { useAuthState } from "@/auth/useAuth";
 import { CreateSeminarDialog } from "@/components/dialogs/CreateSeminarDialog";
 import { EditSeminarDialog } from "@/components/dialogs/EditSeminarDialog";
-import { NewSessionDialog } from "@/components/dialogs/NewSessionDialog";
+import { NewSeminarSessionDialog } from "@/components/dialogs/NewSeminarSessionDialog";
 import { SelectSeminarDialog } from "@/components/dialogs/SelectSeminarDialog";
 import { SelectTutorialDialog } from "@/components/dialogs/SelectTutorialDialog";
 import { useEditSeminarDialog } from "@/contexts/EditSeminarDialogContext";
@@ -17,6 +17,7 @@ import type {
   CreateSeminarSessionInput,
   UpdateSeminarInput,
 } from "@/lib/types";
+import { hasLocator, isUnanchored } from "@/lib/utils";
 import {
   Box,
   Button,
@@ -65,6 +66,10 @@ const BaseLayout = ({ children }: React.PropsWithChildren) => {
     isOpen: sessionIsOpen,
     closeDialog: closeSessionDialog,
     sectionLabelRef,
+    workingQuestionRef,
+    initialClaimsRef,
+    initialClaimsError,
+    setInitialClaimsError,
     seminarIdRef,
   } = useNewSessionDialog();
   const [creatingSession, setCreatingSession] = useState(false);
@@ -105,11 +110,24 @@ const BaseLayout = ({ children }: React.PropsWithChildren) => {
     const label = sectionLabelRef.current?.value.trim() ?? "";
     if (!label) return;
 
+    const workingQuestion = workingQuestionRef.current?.value.trim() ?? "";
+    if (!workingQuestion) return;
+
     const seminarId = seminarIdRef.current;
     if (!seminarId) return;
 
+    const claims = initialClaimsRef.current?.value.trim() ?? "";
+    if (claims !== "" && !hasLocator(claims) && !isUnanchored(claims)) {
+      setInitialClaimsError(
+        "Claim must include a text locator (e.g. p. 12, ch. 3, §4) or be marked UNANCHORED",
+      );
+      return;
+    }
+    setInitialClaimsError("");
+
     const input: CreateSeminarSessionInput = {
       section_label: label,
+      working_question: workingQuestion,
     };
     setCreatingSession(true);
     try {
@@ -221,10 +239,13 @@ const BaseLayout = ({ children }: React.PropsWithChildren) => {
       />
 
       {/* New Session Dialog */}
-      <NewSessionDialog
+      <NewSeminarSessionDialog
         sessionOpen={sessionIsOpen}
         setSessionOpen={(open) => !open && closeSessionDialog()}
         sectionLabelRef={sectionLabelRef}
+        workingQuestionRef={workingQuestionRef}
+        initialClaimsRef={initialClaimsRef}
+        initialClaimsError={initialClaimsError}
         creating={creatingSession}
         handleCreateSession={handleCreateSession}
       />

@@ -37,7 +37,7 @@ interface ExportPageProps {
 }
 
 export default function Export({ resourceType }: ExportPageProps) {
-  const { id } = useParams<{ id: string; }>();
+  const { id } = useParams<{ id: string }>();
   const exportMutation = useExport();
   const navigate = useNavigate();
   const [format, setFormat] = useState<Format>("json");
@@ -65,7 +65,11 @@ export default function Export({ resourceType }: ExportPageProps) {
     setError(null);
     console.log(`[Export] Attempting to export ${resourceType} with ID:`, id);
     try {
-      const result = await exportMutation.mutateAsync({ resourceType, id, format });
+      const result = await exportMutation.mutateAsync({
+        resourceType,
+        id,
+        format,
+      });
       console.log(`[Export] Success! Opening URL:`, result.url);
       window.open(result.url, "_blank");
     } catch (e) {

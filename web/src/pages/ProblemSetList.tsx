@@ -36,7 +36,7 @@ const statusIcon: Record<string, IconType> = {
   deleted: LuCircleAlert,
 };
 
-const ProblemSetButton = ({ ps }: { ps: ProblemSet; }) => {
+const ProblemSetButton = ({ ps }: { ps: ProblemSet }) => {
   const navigate = useNavigate();
   const patterns = [
     ...new Set(
@@ -116,7 +116,11 @@ const ProblemSetButton = ({ ps }: { ps: ProblemSet; }) => {
 
 const ProblemSetList = () => {
   const params = useParams();
-  const { data: rawProblemSets = [], isLoading, error } = useTutorialProblemSets(params.id);
+  const {
+    data: rawProblemSets = [],
+    isLoading,
+    error,
+  } = useTutorialProblemSets(params.id);
 
   const problemSets = [...rawProblemSets].sort(
     (a, b) =>
@@ -134,7 +138,8 @@ const ProblemSetList = () => {
   if (error) {
     return (
       <Text color="red.500">
-        Failed to load problem sets: {error instanceof Error ? error.message : String(error)}
+        Failed to load problem sets:{" "}
+        {error instanceof Error ? error.message : String(error)}
       </Text>
     );
   }

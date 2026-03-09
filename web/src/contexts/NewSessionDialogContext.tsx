@@ -5,6 +5,10 @@ interface NewSessionDialogContextType {
   openDialog: () => void;
   closeDialog: () => void;
   sectionLabelRef: React.MutableRefObject<HTMLInputElement | null>;
+  workingQuestionRef: React.MutableRefObject<HTMLTextAreaElement | null>;
+  initialClaimsRef: React.MutableRefObject<HTMLTextAreaElement | null>;
+  initialClaimsError: string;
+  setInitialClaimsError: (error: string) => void;
   onCreateCallback: React.MutableRefObject<(() => void) | null>;
   seminarIdRef: React.MutableRefObject<string | null>;
 }
@@ -20,6 +24,9 @@ export const NewSessionDialogProvider = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const sectionLabelRef = useRef<HTMLInputElement>(null);
+  const workingQuestionRef = useRef<HTMLTextAreaElement>(null);
+  const initialClaimsRef = useRef<HTMLTextAreaElement>(null);
+  const [initialClaimsError, setInitialClaimsError] = useState("");
   const onCreateCallback = useRef<(() => void) | null>(null);
   const seminarIdRef = useRef<string | null>(null);
 
@@ -30,6 +37,10 @@ export const NewSessionDialogProvider = ({
         openDialog: () => setIsOpen(true),
         closeDialog: () => setIsOpen(false),
         sectionLabelRef,
+        workingQuestionRef,
+        initialClaimsRef,
+        initialClaimsError,
+        setInitialClaimsError,
         onCreateCallback,
         seminarIdRef,
       }}

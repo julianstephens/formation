@@ -7,9 +7,7 @@ import {
   useListTutorialSessions,
   useTutorial,
 } from "@/lib/queries";
-import type {
-  TutorialSessionKind,
-} from "@/lib/types";
+import type { TutorialSessionKind } from "@/lib/types";
 import {
   Badge,
   Box,
@@ -33,7 +31,7 @@ const statusColor: Record<string, string> = {
 };
 
 export default function TutorialDetail() {
-  const { id } = useParams<{ id: string; }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const { data: tutorial, isLoading, error: tutorialError } = useTutorial(id);

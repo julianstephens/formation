@@ -38,7 +38,11 @@ const statusIcon: Record<string, IconType> = {
 
 const ProblemSetDetail = () => {
   const params = useParams();
-  const { data: problemSets = [], isLoading, error } = useTutorialProblemSets(params.id);
+  const {
+    data: problemSets = [],
+    isLoading,
+    error,
+  } = useTutorialProblemSets(params.id);
   const problemSet = problemSets.find((p) => p.id === params.problemSetId);
 
   if (isLoading) {

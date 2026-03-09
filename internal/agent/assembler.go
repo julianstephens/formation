@@ -117,8 +117,8 @@ type AssembleParams struct {
 	SeminarTitle  string
 	SeminarThesis string
 	SectionLabel  string
-	Mode          string              // "paperback" or "excerpt"
-	ExcerptText   string              // non-empty when Mode == "excerpt"
+	Mode          string                     // "paperback" or "excerpt"
+	ExcerptText   string                     // non-empty when Mode == "excerpt"
 	Phase         domain.SeminarSessionPhase // active phase for the addendum
 	Turns         []domain.SeminarTurn       // full chronological turn list
 }

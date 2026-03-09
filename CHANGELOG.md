@@ -2,6 +2,7 @@
 
 - Redesign seminar session page to match tutorial session  page, with new header, standard chat design, and action components
 - Refactor to tanstack/react-query for data fetching and caching, replacing custom hooks and context-based state management
+- Improve SSE infrastructure for seminar sessions, with better error handling and support for multiple concurrent sessions
 
 ## v0.1.2
 

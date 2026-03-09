@@ -225,7 +225,7 @@ func (h *Hub) Subscribe(sessionID, ownerSub string) (<-chan Event, func(), error
 	if isFirst {
 		h.sessionsMu.Lock()
 		if _, exists := h.sessions[sessionID]; !exists {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec
 			h.sessions[sessionID] = cancel
 			go h.runRedisSubscription(ctx, sessionID)
 		}

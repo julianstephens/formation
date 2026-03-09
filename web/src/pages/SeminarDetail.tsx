@@ -20,7 +20,7 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LuPencil } from "react-icons/lu";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -42,7 +42,9 @@ export default function SeminarDetail() {
     useNewSessionDialog();
 
   // Keep seminarIdRef in sync so the new session dialog knows which seminar to use
-  if (id) seminarIdRef.current = id;
+  useEffect(() => {
+    if (id) seminarIdRef.current = id;
+  }, [id, seminarIdRef]);
 
   const handleDelete = async () => {
     if (!id || !window.confirm("Delete this seminar? This cannot be undone."))

@@ -42,12 +42,16 @@ import { useParams } from "react-router-dom";
 // ── Main component ────────────────────────────────────────────────────────────
 
 const TutorialSessionRunner = () => {
-  const { id } = useParams<{ id: string; }>();
+  const { id } = useParams<{ id: string }>();
   console.log("[TutorialSessionRunner] Component rendered, id:", id);
   const unsubscribe = useTutorialSessionEventsUnsubscribe();
 
   // Query: initial session load
-  const { data: sessionData, isLoading, error: loadError } = useTutorialSession(id);
+  const {
+    data: sessionData,
+    isLoading,
+    error: loadError,
+  } = useTutorialSession(id);
 
   // Mutations
   const submitTurnMutation = useSubmitTutorialTurn();
@@ -113,7 +117,9 @@ const TutorialSessionRunner = () => {
     if (!isLoading && !initializedRef.current && !sessionData) {
       setLoading(false);
       if (loadError) {
-        setError(loadError instanceof Error ? loadError.message : String(loadError));
+        setError(
+          loadError instanceof Error ? loadError.message : String(loadError),
+        );
       }
     }
   }, [isLoading, sessionData, loadError]);
@@ -174,9 +180,9 @@ const TutorialSessionRunner = () => {
       setDetail((prev) =>
         prev
           ? {
-            ...prev,
-            artifacts: prev.artifacts.filter((a) => a.id !== artifact_id),
-          }
+              ...prev,
+              artifacts: prev.artifacts.filter((a) => a.id !== artifact_id),
+            }
           : prev,
       );
     },
@@ -225,7 +231,10 @@ const TutorialSessionRunner = () => {
     setTurnError(null);
 
     try {
-      const response = await submitTurnMutation.mutateAsync({ sessionId: id, text });
+      const response = await submitTurnMutation.mutateAsync({
+        sessionId: id,
+        text,
+      });
       setTurns((prev) => {
         // Replace optimistic turn with real user turn, add agent turn if present
         const withoutOptimistic = prev.filter((t) => t.id !== optimisticId);
@@ -268,7 +277,10 @@ const TutorialSessionRunner = () => {
     setCompleting(true);
     try {
       const notes = notesRef.current?.value.trim() ?? "";
-      const updated = await completeMutation.mutateAsync({ sessionId: id, notes });
+      const updated = await completeMutation.mutateAsync({
+        sessionId: id,
+        notes,
+      });
       setDetail((prev) => (prev ? { ...prev, ...updated } : null));
       setShowCompleteForm(false);
       if (id) unsubscribe(id);
@@ -296,13 +308,16 @@ const TutorialSessionRunner = () => {
   const handleDeleteArtifact = async (artifact: Artifact) => {
     if (!id || !window.confirm(`Delete artifact "${artifact.title}"?`)) return;
     try {
-      await deleteArtifactMutation.mutateAsync({ sessionId: id, artifactId: artifact.id });
+      await deleteArtifactMutation.mutateAsync({
+        sessionId: id,
+        artifactId: artifact.id,
+      });
       setDetail((prev) =>
         prev
           ? {
-            ...prev,
-            artifacts: prev.artifacts.filter((a) => a.id !== artifact.id),
-          }
+              ...prev,
+              artifacts: prev.artifacts.filter((a) => a.id !== artifact.id),
+            }
           : null,
       );
     } catch (e) {

@@ -68,7 +68,10 @@ function App() {
           />
 
           {/* Sessions */}
-          <Route path="/seminar-sessions/:id/review" element={<SessionReview />} />
+          <Route
+            path="/seminar-sessions/:id/review"
+            element={<SessionReview />}
+          />
           <Route
             path="/seminar-sessions/:id/export"
             element={<Export resourceType="session" />}
@@ -131,7 +134,10 @@ function App() {
           }
         >
           {/* Session Runners */}
-          <Route path="/seminar-sessions/:id" element={<SeminarSessionRunner />} />
+          <Route
+            path="/seminar-sessions/:id"
+            element={<SeminarSessionRunner />}
+          />
           <Route
             path="/tutorial-sessions/:id"
             element={<TutorialSessionRunner />}

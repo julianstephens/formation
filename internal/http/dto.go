@@ -47,10 +47,11 @@ type SeminarResponse struct {
 
 // CreateSeminarSessionRequest is the body for POST /v1/seminars/:id/sessions.
 type CreateSeminarSessionRequest struct {
-	SectionLabel string `json:"section_label" binding:"required"`
-	Mode         string `json:"mode"`          // optional; falls back to seminar default
-	ExcerptText  string `json:"excerpt_text"`  // required when mode == "excerpt"
-	ReconMinutes int    `json:"recon_minutes"` // optional; falls back to seminar default
+	SectionLabel    string `json:"section_label"    binding:"required"`
+	WorkingQuestion string `json:"working_question" binding:"required"`
+	Mode            string `json:"mode"`          // optional; falls back to seminar default
+	ExcerptText     string `json:"excerpt_text"`  // required when mode == "excerpt"
+	ReconMinutes    int    `json:"recon_minutes"` // optional; falls back to seminar default
 }
 
 // SubmitResidueRequest is the body for POST /v1/sessions/:id/residue.
@@ -62,31 +63,32 @@ type SubmitResidueRequest struct {
 
 // SeminarTurnResponse is the JSON representation of a single turn.
 type SeminarTurnResponse struct {
-	ID        string              `json:"id"`
-	SessionID string              `json:"session_id"`
+	ID        string                     `json:"id"`
+	SessionID string                     `json:"session_id"`
 	Phase     domain.SeminarSessionPhase `json:"phase"`
-	Speaker   string              `json:"speaker"`
-	Text      string              `json:"text"`
-	Flags     []string            `json:"flags"`
-	CreatedAt time.Time           `json:"created_at"`
+	Speaker   string                     `json:"speaker"`
+	Text      string                     `json:"text"`
+	Flags     []string                   `json:"flags"`
+	CreatedAt time.Time                  `json:"created_at"`
 }
 
 // SeminarSessionResponse is the JSON representation of a Session resource.
 type SeminarSessionResponse struct {
-	ID             string               `json:"id"`
-	SeminarID      string               `json:"seminar_id"`
-	SectionLabel   string               `json:"section_label"`
-	Mode           string               `json:"mode"`
-	ExcerptText    string               `json:"excerpt_text,omitempty"`
-	ExcerptHash    string               `json:"excerpt_hash,omitempty"`
-	Status         domain.SeminarSessionStatus `json:"status"`
-	Phase          domain.SeminarSessionPhase  `json:"phase"`
-	ReconMinutes   int                  `json:"recon_minutes"`
-	PhaseStartedAt time.Time            `json:"phase_started_at"`
-	PhaseEndsAt    time.Time            `json:"phase_ends_at"`
-	StartedAt      time.Time            `json:"started_at"`
-	EndedAt        *time.Time           `json:"ended_at,omitempty"`
-	ResidueText    string               `json:"residue_text,omitempty"`
+	ID              string                      `json:"id"`
+	SeminarID       string                      `json:"seminar_id"`
+	SectionLabel    string                      `json:"section_label"`
+	WorkingQuestion string                      `json:"working_question"`
+	Mode            string                      `json:"mode"`
+	ExcerptText     string                      `json:"excerpt_text,omitempty"`
+	ExcerptHash     string                      `json:"excerpt_hash,omitempty"`
+	Status          domain.SeminarSessionStatus `json:"status"`
+	Phase           domain.SeminarSessionPhase  `json:"phase"`
+	ReconMinutes    int                         `json:"recon_minutes"`
+	PhaseStartedAt  time.Time                   `json:"phase_started_at"`
+	PhaseEndsAt     time.Time                   `json:"phase_ends_at"`
+	StartedAt       time.Time                   `json:"started_at"`
+	EndedAt         *time.Time                  `json:"ended_at,omitempty"`
+	ResidueText     string                      `json:"residue_text,omitempty"`
 }
 
 // SeminarSessionDetailResponse is the JSON representation of a session with its turns.

@@ -68,21 +68,22 @@ func ValidStatus(s SeminarSessionStatus) bool {
 
 // SeminarSession is a single seminar reading session owned by a user.
 type SeminarSession struct {
-	ID             string               `json:"id"`
-	SeminarID      string               `json:"seminar_id"`
-	OwnerSub       string               `json:"-"`
-	SectionLabel   string               `json:"section_label"`
-	Mode           string               `json:"mode"`
-	ExcerptText    string               `json:"excerpt_text,omitempty"`
-	ExcerptHash    string               `json:"excerpt_hash,omitempty"`
-	Status         SeminarSessionStatus `json:"status"`
-	Phase          SeminarSessionPhase  `json:"phase"`
-	ReconMinutes   int                  `json:"recon_minutes"`
-	PhaseStartedAt time.Time            `json:"phase_started_at"`
-	PhaseEndsAt    time.Time            `json:"phase_ends_at"`
-	StartedAt      time.Time            `json:"started_at"`
-	EndedAt        *time.Time           `json:"ended_at,omitempty"`
-	ResidueText    string               `json:"residue_text,omitempty"`
+	ID              string               `json:"id"`
+	SeminarID       string               `json:"seminar_id"`
+	OwnerSub        string               `json:"-"`
+	SectionLabel    string               `json:"section_label"`
+	Mode            string               `json:"mode"`
+	ExcerptText     string               `json:"excerpt_text,omitempty"`
+	ExcerptHash     string               `json:"excerpt_hash,omitempty"`
+	Status          SeminarSessionStatus `json:"status"`
+	Phase           SeminarSessionPhase  `json:"phase"`
+	ReconMinutes    int                  `json:"recon_minutes"`
+	PhaseStartedAt  time.Time            `json:"phase_started_at"`
+	PhaseEndsAt     time.Time            `json:"phase_ends_at"`
+	StartedAt       time.Time            `json:"started_at"`
+	EndedAt         *time.Time           `json:"ended_at,omitempty"`
+	ResidueText     string               `json:"residue_text,omitempty"`
+	WorkingQuestion string               `json:"working_question"`
 }
 
 // IsPhaseExpired reports whether the current phase timer has elapsed.

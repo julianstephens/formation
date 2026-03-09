@@ -18,10 +18,7 @@ import {
   useSubmitResidue,
   useSubmitTurn,
 } from "@/lib/queries";
-import type {
-  SeminarSessionDetail,
-  Turn
-} from "@/lib/types";
+import type { SeminarSessionDetail, Turn } from "@/lib/types";
 import {
   Box,
   Flex,
@@ -35,11 +32,16 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 const SeminarSessionRunner = () => {
-  const { id } = useParams<{ id: string; }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const unsubscribe = useSessionEventsUnsubscribe();
 
-  const { data: sessionData, isLoading, error: loadError, refetch } = useSession(id);
+  const {
+    data: sessionData,
+    isLoading,
+    error: loadError,
+    refetch,
+  } = useSession(id);
   const submitTurnMutation = useSubmitTurn();
   const submitResidueMutation = useSubmitResidue();
   const abandonSessionMutation = useAbandonSession();
@@ -79,7 +81,7 @@ const SeminarSessionRunner = () => {
             0,
             Math.ceil(
               (new Date(sessionData.phase_ends_at).getTime() - Date.now()) /
-              1000,
+                1000,
             ),
           ),
         );
@@ -112,7 +114,10 @@ const SeminarSessionRunner = () => {
       // Safety net: if the tick's phase doesn't match local state the client
       // missed a phase_changed event (e.g. fired during a reconnect window).
       // Re-fetch the session from the API to get fully-fresh state.
-      if (sessionPhaseRef.current !== null && sessionPhaseRef.current !== payload.phase) {
+      if (
+        sessionPhaseRef.current !== null &&
+        sessionPhaseRef.current !== payload.phase
+      ) {
         void refetch().then(({ data: fresh }) => {
           if (fresh) {
             setSession(fresh);
@@ -123,7 +128,7 @@ const SeminarSessionRunner = () => {
                   0,
                   Math.ceil(
                     (new Date(fresh.phase_ends_at).getTime() - Date.now()) /
-                    1000,
+                      1000,
                   ),
                 ),
               );
@@ -146,13 +151,14 @@ const SeminarSessionRunner = () => {
       setSession((prev) =>
         prev
           ? {
-            ...prev,
-            phase: payload.phase,
-            phase_ends_at: payload.phase_ends_at ?? prev.phase_ends_at,
-            // Use the server-recorded timestamp to avoid client clock skew
-            // skewing totalDurationSeconds in the progress bar calculation.
-            phase_started_at: payload.phase_started_at ?? new Date().toISOString(),
-          }
+              ...prev,
+              phase: payload.phase,
+              phase_ends_at: payload.phase_ends_at ?? prev.phase_ends_at,
+              // Use the server-recorded timestamp to avoid client clock skew
+              // skewing totalDurationSeconds in the progress bar calculation.
+              phase_started_at:
+                payload.phase_started_at ?? new Date().toISOString(),
+            }
           : prev,
       );
       setPhaseLocked(false);
@@ -186,7 +192,10 @@ const SeminarSessionRunner = () => {
     setError(null);
     setLocatorError(null);
     try {
-      const agentTurn = await submitTurnMutation.mutateAsync({ sessionId: id, text });
+      const agentTurn = await submitTurnMutation.mutateAsync({
+        sessionId: id,
+        text,
+      });
       // SSE turn_added will append both user and agent turns.
       // Also do a local dedup-append as a fallback for clients without SSE.
       setTurns((prev) => {
@@ -195,10 +204,10 @@ const SeminarSessionRunner = () => {
       });
     } catch (e) {
       if (e instanceof ApiRequestError && e.message === "missing_locator") {
-        const detail = e.detail as { message?: string; } | undefined;
+        const detail = e.detail as { message?: string } | undefined;
         setLocatorError(
           detail?.message ??
-          "Claim must include a text locator or be marked UNANCHORED.",
+            "Claim must include a text locator or be marked UNANCHORED.",
         );
       } else {
         const msg = e instanceof ApiRequestError ? e.message : String(e);
@@ -214,7 +223,10 @@ const SeminarSessionRunner = () => {
     setSubmitting(true);
     setError(null);
     try {
-      await submitResidueMutation.mutateAsync({ sessionId: id, residueText: text });
+      await submitResidueMutation.mutateAsync({
+        sessionId: id,
+        residueText: text,
+      });
       navigate(`/seminar-sessions/${id}/review`, { replace: true });
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : String(e));
@@ -228,7 +240,10 @@ const SeminarSessionRunner = () => {
     const notes = notesRef.current?.value ?? "";
     setError(null);
     try {
-      await submitResidueMutation.mutateAsync({ sessionId: id, residueText: notes });
+      await submitResidueMutation.mutateAsync({
+        sessionId: id,
+        residueText: notes,
+      });
       navigate(`/seminar-sessions/${id}/review`, { replace: true });
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : String(e));
@@ -322,11 +337,7 @@ const SeminarSessionRunner = () => {
               : void handleSubmitTurn(msg)
           }
           disabled={isDone || phaseLocked || submitting}
-          placeholder={
-            isResiduePhase
-              ? "Write your residue…"
-              : "Your message…"
-          }
+          placeholder={isResiduePhase ? "Write your residue…" : "Your message…"}
         />
         <ChatActions
           onComplete={handleComplete}

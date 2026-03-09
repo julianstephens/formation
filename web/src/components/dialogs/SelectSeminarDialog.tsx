@@ -36,7 +36,9 @@ export const SelectSeminarDialog = () => {
                 <Spinner size="lg" />
               </Box>
             ) : error ? (
-              <Text color="red.500">{error instanceof Error ? error.message : String(error)}</Text>
+              <Text color="red.500">
+                {error instanceof Error ? error.message : String(error)}
+              </Text>
             ) : seminars.length === 0 ? (
               <Text color="gray.500">
                 No seminars available. Create one first!

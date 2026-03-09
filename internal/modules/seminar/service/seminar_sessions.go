@@ -30,10 +30,11 @@ func NewSeminarSessionService(sessions *repo.SeminarSessionRepo, seminars *repo.
 // CreateSessionParams holds all caller-supplied fields for creating a session.
 // Zero-value Mode and ReconMinutes fall back to the seminar's configured defaults.
 type CreateSeminarSessionParams struct {
-	SectionLabel string
-	Mode         string // optional; falls back to seminar.DefaultMode
-	ExcerptText  string // required when mode == "excerpt"
-	ReconMinutes int    // optional; falls back to seminar.DefaultReconMinutes
+	SectionLabel    string
+	WorkingQuestion string
+	Mode            string // optional; falls back to seminar.DefaultMode
+	ExcerptText     string // required when mode == "excerpt"
+	ReconMinutes    int    // optional; falls back to seminar.DefaultReconMinutes
 }
 
 // Create validates params, inherits seminar defaults, and persists a new
@@ -55,6 +56,11 @@ func (s *SeminarSessionService) Create(
 	if strings.TrimSpace(p.SectionLabel) == "" {
 		logger.Debug("validation failed: blank section label")
 		return nil, &ValidationError{Field: "section_label", Message: "must not be blank"}
+	}
+
+	if strings.TrimSpace(p.WorkingQuestion) == "" {
+		logger.Debug("validation failed: blank working question")
+		return nil, &ValidationError{Field: "working_question", Message: "must not be blank"}
 	}
 
 	// Verify seminar ownership and retrieve defaults.
@@ -87,14 +93,15 @@ func (s *SeminarSessionService) Create(
 
 	now := time.Now().UTC()
 	sess := domain.SeminarSession{
-		SeminarID:      seminarID,
-		SectionLabel:   p.SectionLabel,
-		Mode:           p.Mode,
-		ExcerptText:    p.ExcerptText,
-		ExcerptHash:    excerptHash(p.ExcerptText),
-		ReconMinutes:   p.ReconMinutes,
-		PhaseStartedAt: now,
-		PhaseEndsAt:    now.Add(time.Duration(p.ReconMinutes) * time.Minute),
+		SeminarID:       seminarID,
+		SectionLabel:    p.SectionLabel,
+		WorkingQuestion: p.WorkingQuestion,
+		Mode:            p.Mode,
+		ExcerptText:     p.ExcerptText,
+		ExcerptHash:     excerptHash(p.ExcerptText),
+		ReconMinutes:    p.ReconMinutes,
+		PhaseStartedAt:  now,
+		PhaseEndsAt:     now.Add(time.Duration(p.ReconMinutes) * time.Minute),
 	}
 
 	created, err := s.sessions.Create(ctx, ownerSub, sess)

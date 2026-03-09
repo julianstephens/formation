@@ -6,6 +6,7 @@
  *
  * The connection is only aborted on explicit abandonment or session completion.
  */
+/* eslint-disable react-refresh/only-export-components */
 
 import type {
   PhaseChangedPayload,
@@ -54,6 +55,7 @@ const {
   (sessionId) => `${BASE_URL}/seminar-sessions/${sessionId}/events`,
   dispatch,
 );
+
 
 export {
   SessionEventsProvider,

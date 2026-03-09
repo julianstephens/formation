@@ -70,7 +70,7 @@ async function request<T>(
     let message = res.statusText;
     let detail: unknown;
     try {
-      const json = (await res.json()) as { error?: string; };
+      const json = (await res.json()) as { error?: string };
       message = json.error ?? message;
       detail = json;
     } catch {
@@ -122,7 +122,8 @@ export function createApiClient(getToken: () => Promise<string>) {
     abandonSession: (sessionId: string) =>
       post<SeminarSession>(`/seminar-sessions/${sessionId}/abandon`),
 
-    deleteSession: (sessionId: string) => del<void>(`/seminar-sessions/${sessionId}`),
+    deleteSession: (sessionId: string) =>
+      del<void>(`/seminar-sessions/${sessionId}`),
 
     submitResidue: (sessionId: string, residueText: string) =>
       post<SeminarSession>(`/seminar-sessions/${sessionId}/residue`, {
@@ -135,24 +136,26 @@ export function createApiClient(getToken: () => Promise<string>) {
 
     // ── Exports ───────────────────────────────────────────────────────────────
     exportSeminar: (seminarId: string, format: "json" | "md" = "json") =>
-      get<{ url: string; }>(`/seminars/${seminarId}/export?format=${format}`),
+      get<{ url: string }>(`/seminars/${seminarId}/export?format=${format}`),
 
     exportSession: (sessionId: string, format: "json" | "md" = "json") =>
-      get<{ url: string; }>(`/seminar-sessions/${sessionId}/export?format=${format}`),
+      get<{ url: string }>(
+        `/seminar-sessions/${sessionId}/export?format=${format}`,
+      ),
 
     exportTutorial: (tutorialId: string, format: "json" | "md" = "json") =>
-      get<{ url: string; }>(`/tutorials/${tutorialId}/export?format=${format}`),
+      get<{ url: string }>(`/tutorials/${tutorialId}/export?format=${format}`),
 
     exportTutorialSession: (
       sessionId: string,
       format: "json" | "md" = "json",
     ) =>
-      get<{ url: string; }>(
+      get<{ url: string }>(
         `/tutorial-sessions/${sessionId}/export?format=${format}`,
       ),
 
     exportProblemSet: (problemSetId: string, format: "json" | "md" = "json") =>
-      get<{ url: string; }>(
+      get<{ url: string }>(
         `/problem-sets/${problemSetId}/export?format=${format}`,
       ),
 
@@ -195,7 +198,7 @@ export function createApiClient(getToken: () => Promise<string>) {
 
     // ── Problem Sets ──────────────────────────────────────────────────────────
     listTutorialProblemSets: (tutorialId: string) =>
-      get<{ problem_sets: ProblemSet[]; }>(
+      get<{ problem_sets: ProblemSet[] }>(
         `/tutorials/${tutorialId}/problem-sets`,
       ).then((res) => res.problem_sets),
 

@@ -35,7 +35,11 @@ export default function TutorialList() {
     setDifficulty,
   } = useCreateTutorialDialog();
 
-  const { data: tutorials = [], isLoading, error: listError } = useListTutorials();
+  const {
+    data: tutorials = [],
+    isLoading,
+    error: listError,
+  } = useListTutorials();
   const createTutorialMutation = useCreateTutorial();
   const [error, setError] = useState<string | null>(null);
 
@@ -103,7 +107,10 @@ export default function TutorialList() {
 
       {(error ?? listError) && (
         <Text color="red.500" mb={4}>
-          {error ?? (listError instanceof Error ? listError.message : String(listError))}
+          {error ??
+            (listError instanceof Error
+              ? listError.message
+              : String(listError))}
         </Text>
       )}
 
