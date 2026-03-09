@@ -14,7 +14,7 @@
  */
 
 import { useAccessToken } from "@/auth/useAuth";
-import type { SessionPhase, Turn } from "@/lib/types";
+import type { SeminarSessionPhase, Turn } from "@/lib/types";
 import { useEffect } from "react";
 
 const BASE_URL =
@@ -24,14 +24,14 @@ const BASE_URL =
 
 export interface PhaseChangedPayload {
   session_id: string;
-  phase: SessionPhase;
+  phase: SeminarSessionPhase;
   /** ISO-8601 timestamp; absent when phase has no time limit (e.g. done). */
   phase_ends_at?: string;
 }
 
 export interface TimerTickPayload {
   session_id: string;
-  phase: SessionPhase;
+  phase: SeminarSessionPhase;
   seconds_remaining: number;
 }
 

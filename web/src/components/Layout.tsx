@@ -10,7 +10,7 @@ import { useSeminarDialog } from "@/contexts/SeminarDialogContext";
 import { useApi } from "@/lib/ApiContext";
 import type {
   CreateSeminarInput,
-  CreateSessionInput,
+  CreateSeminarSessionInput,
   UpdateSeminarInput,
 } from "@/lib/types";
 import { Box, Button, Flex, HStack, Spacer, Text } from "@chakra-ui/react";
@@ -86,7 +86,7 @@ const BaseLayout = ({ children }: React.PropsWithChildren) => {
     const seminarId = seminarIdRef.current;
     if (!seminarId) return;
 
-    const input: CreateSessionInput = {
+    const input: CreateSeminarSessionInput = {
       section_label: label,
     };
     setCreatingSession(true);

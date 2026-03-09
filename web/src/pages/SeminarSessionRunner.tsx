@@ -1,20 +1,5 @@
-/**
- * SessionRunner – interactive turn-submission page.
- *
- * Implements Phase 12:
- *   - SSE subscription via useSessionEvents (backend-driven countdown + events)
- *   - Live MM:SS countdown sourced from timer_tick events
- *   - Phase-lock (disables input during phase transitions)
- *   - Appends turns received via turn_added without a manual refresh
- *   - Redirects on session_completed event
- *   - Inline MISSING_LOCATOR error with locator format helper
- *
- * Pre-existing behaviour retained:
- *   - Loading/submitting user turns and appending agent replies
- *   - Residue submission when phase === "residue_required"
- *   - Abandoning a session
- */
-
+import { ChatInput } from "@/components/chat/ChatInput";
+import { SeminarSessionHeader } from "@/components/seminars/SeminarSessionHeader";
 import {
   useSessionEventsSubscription,
   useSessionEventsUnsubscribe,
@@ -26,25 +11,24 @@ import type {
 } from "@/hooks/useSessionEvents";
 import { ApiRequestError } from "@/lib/api";
 import { useApi } from "@/lib/ApiContext";
-import type { SessionDetail, SessionPhase, Turn } from "@/lib/types";
+import type {
+  SeminarSessionDetail,
+  SeminarSessionPhase,
+  Turn,
+} from "@/lib/types";
 import {
-  Alert,
-  Badge,
   Box,
-  Button,
-  Card,
-  Code,
+  Flex,
   Heading,
   HStack,
   Spinner,
   Text,
-  Textarea,
   VStack,
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-const PHASE_LABELS: Record<SessionPhase, string> = {
+const PHASE_LABELS: Record<SeminarSessionPhase, string> = {
   reconstruction: "Reconstruction",
   opposition: "Opposition",
   reversal: "Reversal",
@@ -52,21 +36,13 @@ const PHASE_LABELS: Record<SessionPhase, string> = {
   done: "Done",
 };
 
-const PHASE_COLOR: Record<SessionPhase, string> = {
-  reconstruction: "blue",
-  opposition: "orange",
-  reversal: "purple",
-  residue_required: "red",
-  done: "green",
-};
-
 const SeminarSessionRunner = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string; }>();
   const api = useApi();
   const navigate = useNavigate();
   const unsubscribe = useSessionEventsUnsubscribe();
 
-  const [session, setSession] = useState<SessionDetail | null>(null);
+  const [session, setSession] = useState<SeminarSessionDetail | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -126,20 +102,20 @@ const SeminarSessionRunner = () => {
       setSecondsRemaining(
         payload.phase_ends_at
           ? Math.max(
-              0,
-              Math.ceil(
-                (new Date(payload.phase_ends_at).getTime() - Date.now()) / 1000,
-              ),
-            )
+            0,
+            Math.ceil(
+              (new Date(payload.phase_ends_at).getTime() - Date.now()) / 1000,
+            ),
+          )
           : null,
       );
       setSession((prev) =>
         prev
           ? {
-              ...prev,
-              phase: payload.phase,
-              phase_ends_at: payload.phase_ends_at ?? prev.phase_ends_at,
-            }
+            ...prev,
+            phase: payload.phase,
+            phase_ends_at: payload.phase_ends_at ?? prev.phase_ends_at,
+          }
           : prev,
       );
       setPhaseLocked(false);
@@ -185,10 +161,10 @@ const SeminarSessionRunner = () => {
       turnRef.current.value = "";
     } catch (e) {
       if (e instanceof ApiRequestError && e.message === "missing_locator") {
-        const detail = e.detail as { message?: string } | undefined;
+        const detail = e.detail as { message?: string; } | undefined;
         setLocatorError(
           detail?.message ??
-            "Claim must include a text locator or be marked UNANCHORED.",
+          "Claim must include a text locator or be marked UNANCHORED.",
         );
       } else {
         const msg = e instanceof ApiRequestError ? e.message : String(e);
@@ -247,224 +223,48 @@ const SeminarSessionRunner = () => {
     turns.length > 0 && turns[turns.length - 1].speaker === "user";
 
   return (
-    <Box maxW="3xl" mx="auto" w="full">
-      {/* Phase banner */}
-      <Card.Root
-        mb={4}
-        bg={`${PHASE_COLOR[phase]}.50`}
-        _dark={{ bg: `${PHASE_COLOR[phase]}.900` }}
-      >
-        <Card.Body>
-          <HStack justify="space-between" wrap="wrap" gap={2}>
-            <HStack gap={3}>
-              <Heading size="md">{session.section_label}</Heading>
-              <Badge
-                colorScheme={PHASE_COLOR[phase]}
-                fontSize="sm"
-                px={2}
-                py={1}
-              >
-                {PHASE_LABELS[phase]}
-              </Badge>
-            </HStack>
-            <HStack gap={2}>
-              <Button
-                size="xs"
-                variant="outline"
-                colorScheme="red"
-                onClick={handleAbandon}
-              >
-                Abandon
-              </Button>
-            </HStack>
-          </HStack>
-          {/* Backend-driven countdown from SSE timer_tick events */}
-          {!isResiduePhase && !isDone && (
-            <Text
-              fontSize="sm"
-              fontVariantNumeric="tabular-nums"
-              color="gray.600"
-              mt={1}
-            >
-              {secondsRemaining !== null
-                ? `${String(Math.floor(secondsRemaining / 60)).padStart(2, "0")}:${String(secondsRemaining % 60).padStart(2, "0")} remaining`
-                : session.phase_ends_at
-                  ? `Phase ends ${new Date(session.phase_ends_at).toLocaleTimeString()}`
-                  : null}
-            </Text>
-          )}
-          {phaseLocked && (
-            <HStack mt={1} gap={1}>
-              <Spinner size="xs" />
-              <Text fontSize="xs" color="gray.400">
-                Phase transitioning…
-              </Text>
-            </HStack>
-          )}
-        </Card.Body>
-      </Card.Root>
-
-      {error && (
-        <Text color="red.500" mb={3}>
-          {error}
-        </Text>
-      )}
-
-      {/* MISSING_LOCATOR inline error + locator format guide */}
-      {locatorError && (
-        <Alert.Root status="warning" mb={3} rounded="md">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>Locator required</Alert.Title>
-            <Alert.Description>
-              {locatorError} Include one of the following formats in your claim,
-              or prefix the sentence with <Code>UNANCHORED</Code>:
-              <HStack mt={1} gap={2} wrap="wrap">
-                {[
-                  "p. 12",
-                  "pp. 12–15",
-                  "ch. 3",
-                  "§4",
-                  "scene 3",
-                  "para. 7",
-                  "¶7",
-                  "l. 12",
-                ].map((ex) => (
-                  <Code key={ex} fontSize="xs">
-                    {ex}
-                  </Code>
-                ))}
-              </HStack>
-            </Alert.Description>
-          </Alert.Content>
-        </Alert.Root>
-      )}
-
-      {/* Transcript */}
-      <Box
-        borderWidth={1}
-        rounded="md"
-        p={4}
-        minH={{ base: "180px", md: "300px" }}
-        maxH={{ base: "40vh", md: "55vh" }}
-        overflowY="auto"
-        mb={4}
-        bg="gray.50"
-        _dark={{ bg: "gray.800" }}
-      >
-        {turns.length === 0 ? (
-          <Text color="gray.400" textAlign="center" mt={8}>
-            Transcript will appear here as the session progresses.
+    <Flex w="full">
+      <VStack h="full" flexGrow={1}>
+        <SeminarSessionHeader
+          detail={session}
+          phaseInfo={{
+            secondsRemaining: secondsRemaining ?? 0,
+            isResiduePhase,
+            isDone,
+          }}
+          toBack={`/seminars/${session.seminar_id}`}
+          toExport={`/sessions/${id}/export`}
+        />
+        {/* E. Error banners */}
+        {error && (
+          <Text color="red.500" mb={4}>
+            {error}
           </Text>
-        ) : (
-          <VStack align="stretch" gap={3}>
-            {turns
-              .filter((t) => t.text?.trim())
-              .map((t) => {
-                const isUser = t.speaker === "user";
-                return (
-                  <Box
-                    key={t.id}
-                    p={3}
-                    borderLeft="4px solid"
-                    borderLeftColor={isUser ? "blue.500" : "teal.500"}
-                    bg={isUser ? "blue.50" : "teal.50"}
-                    _dark={{ bg: isUser ? "blue.900" : "teal.900" }}
-                    rounded="md"
-                  >
-                    <HStack mb={2} gap={2} wrap="wrap">
-                      <Badge
-                        colorScheme={isUser ? "blue" : "teal"}
-                        size="md"
-                        fontWeight="bold"
-                      >
-                        {isUser ? "👤 You" : "🤖 Agent"}
-                      </Badge>
-                      <Badge colorScheme="gray" size="sm">
-                        {t.phase}
-                      </Badge>
-                      {t.flags?.length > 0 &&
-                        t.flags.map((f) => (
-                          <Badge key={f} colorScheme="red" size="sm">
-                            {f}
-                          </Badge>
-                        ))}
-                    </HStack>
-                    <Text fontSize="sm" whiteSpace="pre-wrap" lineHeight="1.6">
-                      {t.text}
-                    </Text>
-                  </Box>
-                );
-              })}
-            {agentThinking && (
-              <HStack gap={2} w="full" px={3} py={2}>
-                <Spinner size="sm" />
-                <Text fontSize="sm" color="gray.500" fontStyle="italic">
-                  Agent is thinking…
-                </Text>
-              </HStack>
-            )}
-          </VStack>
         )}
-        <div ref={bottomRef} />
-      </Box>
-
-      {/* Input area */}
-      {isResiduePhase ? (
-        <VStack gap={3} align="stretch">
-          <Text fontWeight="medium">
-            Submit your residue reflection (5–7 sentences with
-            thesis/objection/tension components):
+        {/* Abandoned banner */}
+        {session.status === "abandoned" && (
+          <Text color="gray.500" fontSize="sm" mb={4} fontStyle="italic">
+            This session has been abandoned.
           </Text>
-          <Textarea ref={residueRef} rows={6} placeholder="Your residue…" />
-          <Button
-            colorScheme="red"
-            loading={submitting}
-            onClick={handleSubmitResidue}
-          >
-            Submit Residue
-          </Button>
-        </VStack>
-      ) : isDone ? (
-        <Button
-          colorScheme="green"
-          w="full"
-          onClick={() => navigate(`/sessions/${id}/review`)}
+        )}
+        <Box
+          id="conversationContainer"
+          maxW={{ base: "100vw", md: "4xl" }}
+          w={{ md: "full" }}
+          mx={{ base: "4", md: "auto" }}
+          display={{ md: "flex" }}
+          flexDir="column"
+          gap={6}
+          alignItems="flex-start"
         >
-          View Review
-        </Button>
-      ) : (
-        canSubmitTurns && (
-          <VStack gap={2} align="stretch">
-            <Textarea
-              ref={turnRef}
-              rows={3}
-              placeholder="Your turn…"
-              disabled={submitting || phaseLocked}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                  void handleSubmitTurn();
-                }
-              }}
-            />
-            <HStack justify="space-between" wrap="wrap" gap={2}>
-              <Text fontSize="xs" color="gray.400">
-                ⌘/Ctrl+Enter to submit
-              </Text>
-              <Button
-                className="primary"
-                loading={submitting}
-                disabled={phaseLocked}
-                w={{ base: "full", sm: "auto" }}
-                onClick={handleSubmitTurn}
-              >
-                Submit
-              </Button>
-            </HStack>
-          </VStack>
-        )
-      )}
-    </Box>
+          <Heading size="sm" mb={3}>
+            Conversation
+          </Heading>
+          {/* // TODO: implement seminar turn list */}
+        </Box>
+        <ChatInput />
+      </VStack>
+    </Flex>
   );
 };
 

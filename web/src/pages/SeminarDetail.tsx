@@ -3,7 +3,7 @@ import { useEditSeminarDialog } from "@/contexts/EditSeminarDialogContext";
 import { useNewSessionDialog } from "@/contexts/NewSessionDialogContext";
 import { ApiRequestError } from "@/lib/api";
 import { useApi } from "@/lib/ApiContext";
-import type { Seminar, Session } from "@/lib/types";
+import type { Seminar, SeminarSession } from "@/lib/types";
 import {
   Badge,
   Box,
@@ -21,12 +21,12 @@ import { LuPencil } from "react-icons/lu";
 import { useNavigate, useParams } from "react-router-dom";
 
 export default function SeminarDetail() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string; }>();
   const api = useApi();
   const navigate = useNavigate();
 
   const [seminar, setSeminar] = useState<Seminar | null>(null);
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessions, setSessions] = useState<SeminarSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

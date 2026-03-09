@@ -1,7 +1,7 @@
 import { useSelectSeminarDialog } from "@/contexts/SelectSeminarDialogContext";
 import { useSelectTutorialDialog } from "@/contexts/SelectTutorialDialogContext";
 import { useApi } from "@/lib/ApiContext";
-import type { Seminar, Session, Tutorial, TutorialSession } from "@/lib/types";
+import type { Seminar, SeminarSession, Tutorial, TutorialSession } from "@/lib/types";
 import {
   Badge,
   Button,
@@ -64,7 +64,7 @@ const Dashboard = () => {
         [
           Promise.all(
             seminars.map((s) =>
-              api.listSessions(s.id).catch(() => [] as Session[]),
+              api.listSessions(s.id).catch(() => [] as SeminarSession[]),
             ),
           ),
           Promise.all(

@@ -1,5 +1,5 @@
 import { useApi } from "@/lib/ApiContext";
-import type { SessionDetail, SessionPhase, Turn } from "@/lib/types";
+import type { SeminarSessionDetail, SeminarSessionPhase, Turn } from "@/lib/types";
 import {
   Badge,
   Box,
@@ -14,7 +14,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-const PHASE_LABELS: Record<SessionPhase, string> = {
+const PHASE_LABELS: Record<SeminarSessionPhase, string> = {
   reconstruction: "Reconstruction",
   opposition: "Opposition",
   reversal: "Reversal",
@@ -23,11 +23,11 @@ const PHASE_LABELS: Record<SessionPhase, string> = {
 };
 
 export default function SessionReview() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string; }>();
   const api = useApi();
   const navigate = useNavigate();
 
-  const [session, setSession] = useState<SessionDetail | null>(null);
+  const [session, setSession] = useState<SeminarSessionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -134,7 +134,7 @@ export default function SessionReview() {
         <Box key={phase} mb={8}>
           <HStack mb={3}>
             <Heading size="sm" textTransform="uppercase" letterSpacing="wide">
-              {PHASE_LABELS[phase as SessionPhase] ?? phase}
+              {PHASE_LABELS[phase as SeminarSessionPhase] ?? phase}
             </Heading>
             <hr />
           </HStack>

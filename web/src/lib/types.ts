@@ -39,25 +39,25 @@ export interface UpdateSeminarInput {
   default_recon_minutes?: number;
 }
 
-// ── Session ───────────────────────────────────────────────────────────────────
+// ── Seminar Session ───────────────────────────────────────────────────────────────────
 
-export type SessionStatus = "in_progress" | "complete" | "abandoned";
-export type SessionPhase =
+export type SeminarSessionStatus = "in_progress" | "complete" | "abandoned";
+export type SeminarSessionPhase =
   | "reconstruction"
   | "opposition"
   | "reversal"
   | "residue_required"
   | "done";
 
-export interface Session {
+export interface SeminarSession {
   id: string;
   seminar_id: string;
   section_label: string;
   mode: string;
   excerpt_text?: string;
   excerpt_hash?: string;
-  status: SessionStatus;
-  phase: SessionPhase;
+  status: SeminarSessionStatus;
+  phase: SeminarSessionPhase;
   recon_minutes: number;
   phase_started_at: string;
   phase_ends_at: string;
@@ -69,18 +69,18 @@ export interface Session {
 export interface Turn {
   id: string;
   session_id: string;
-  phase: SessionPhase;
+  phase: SeminarSessionPhase;
   speaker: string;
   text: string;
   flags: string[];
   created_at: string;
 }
 
-export interface SessionDetail extends Session {
+export interface SeminarSessionDetail extends SeminarSession {
   turns: Turn[];
 }
 
-export interface CreateSessionInput {
+export interface CreateSeminarSessionInput {
   section_label: string;
   mode?: string;
   excerpt_text?: string;

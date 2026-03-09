@@ -2,6 +2,7 @@ import { Provider } from "@/components/ui/provider.tsx";
 import { Auth0Provider } from "@auth0/auth0-react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { Tooltip } from "react-tooltip";
 import App from "./App.tsx";
 import "./index.css";
 

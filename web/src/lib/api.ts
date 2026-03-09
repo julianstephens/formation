@@ -12,13 +12,13 @@ import type {
   Artifact,
   CreateArtifactInput,
   CreateSeminarInput,
-  CreateSessionInput,
+  CreateSeminarSessionInput,
   CreateTutorialInput,
   CreateTutorialSessionInput,
   ProblemSet,
   Seminar,
-  Session,
-  SessionDetail,
+  SeminarSession,
+  SeminarSessionDetail,
   SubmitTutorialTurnResponse,
   Turn,
   Tutorial,
@@ -70,7 +70,7 @@ async function request<T>(
     let message = res.statusText;
     let detail: unknown;
     try {
-      const json = (await res.json()) as { error?: string };
+      const json = (await res.json()) as { error?: string; };
       message = json.error ?? message;
       detail = json;
     } catch {
@@ -110,22 +110,22 @@ export function createApiClient(getToken: () => Promise<string>) {
     deleteSeminar: (id: string) => del<void>(`/seminars/${id}`),
 
     // ── Sessions ─────────────────────────────────────────────────────────────
-    createSession: (seminarId: string, input: CreateSessionInput) =>
-      post<Session>(`/seminars/${seminarId}/sessions`, input),
+    createSession: (seminarId: string, input: CreateSeminarSessionInput) =>
+      post<SeminarSession>(`/seminars/${seminarId}/sessions`, input),
 
     getSession: (sessionId: string) =>
-      get<SessionDetail>(`/sessions/${sessionId}`),
+      get<SeminarSessionDetail>(`/sessions/${sessionId}`),
 
     listSessions: (seminarId: string) =>
-      get<Session[]>(`/seminars/${seminarId}/sessions`),
+      get<SeminarSession[]>(`/seminars/${seminarId}/sessions`),
 
     abandonSession: (sessionId: string) =>
-      post<Session>(`/sessions/${sessionId}/abandon`),
+      post<SeminarSession>(`/sessions/${sessionId}/abandon`),
 
     deleteSession: (sessionId: string) => del<void>(`/sessions/${sessionId}`),
 
     submitResidue: (sessionId: string, residueText: string) =>
-      post<Session>(`/sessions/${sessionId}/residue`, {
+      post<SeminarSession>(`/sessions/${sessionId}/residue`, {
         residue_text: residueText,
       }),
 
@@ -135,24 +135,24 @@ export function createApiClient(getToken: () => Promise<string>) {
 
     // ── Exports ───────────────────────────────────────────────────────────────
     exportSeminar: (seminarId: string, format: "json" | "md" = "json") =>
-      get<{ url: string }>(`/seminars/${seminarId}/export?format=${format}`),
+      get<{ url: string; }>(`/seminars/${seminarId}/export?format=${format}`),
 
     exportSession: (sessionId: string, format: "json" | "md" = "json") =>
-      get<{ url: string }>(`/sessions/${sessionId}/export?format=${format}`),
+      get<{ url: string; }>(`/sessions/${sessionId}/export?format=${format}`),
 
     exportTutorial: (tutorialId: string, format: "json" | "md" = "json") =>
-      get<{ url: string }>(`/tutorials/${tutorialId}/export?format=${format}`),
+      get<{ url: string; }>(`/tutorials/${tutorialId}/export?format=${format}`),
 
     exportTutorialSession: (
       sessionId: string,
       format: "json" | "md" = "json",
     ) =>
-      get<{ url: string }>(
+      get<{ url: string; }>(
         `/tutorial-sessions/${sessionId}/export?format=${format}`,
       ),
 
     exportProblemSet: (problemSetId: string, format: "json" | "md" = "json") =>
-      get<{ url: string }>(
+      get<{ url: string; }>(
         `/problem-sets/${problemSetId}/export?format=${format}`,
       ),
 
@@ -195,7 +195,7 @@ export function createApiClient(getToken: () => Promise<string>) {
 
     // ── Problem Sets ──────────────────────────────────────────────────────────
     listTutorialProblemSets: (tutorialId: string) =>
-      get<{ problem_sets: ProblemSet[] }>(
+      get<{ problem_sets: ProblemSet[]; }>(
         `/tutorials/${tutorialId}/problem-sets`,
       ).then((res) => res.problem_sets),
 
