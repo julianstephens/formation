@@ -37,35 +37,35 @@ type Scheduler struct {
 	mu     sync.Mutex
 	timers map[string]*time.Timer // keyed by session ID
 
-	sessRepo *repo.SessionRepo
+	sessRepo *repo.SeminarSessionRepo
 	log      *slog.Logger
 
 	// onPhaseChanged is invoked synchronously in the timer goroutine after each
 	// successful phase transition. Registered by the SSE hub in a later phase.
 	// Must be non-blocking.
-	onPhaseChanged func(sess *domain.Session)
+	onPhaseChanged func(sess *domain.SeminarSession)
 
 	// onTurnAdded is invoked after a system turn is inserted for a phase
 	// transition. Registered by the SSE hub so the turn reaches the client.
 	// Must be non-blocking.
-	onTurnAdded func(turn *domain.Turn)
+	onTurnAdded func(turn *domain.SeminarTurn)
 }
 
 // New creates a Scheduler backed by the given SessionRepo.
-func New(r *repo.SessionRepo, logger *slog.Logger) *Scheduler {
+func New(r *repo.SeminarSessionRepo, logger *slog.Logger) *Scheduler {
 	return &Scheduler{
 		timers:         make(map[string]*time.Timer),
 		sessRepo:       r,
 		log:            logger,
-		onPhaseChanged: func(_ *domain.Session) {}, // no-op until SSE hub
-		onTurnAdded:    func(_ *domain.Turn) {},    // no-op until SSE hub
+		onPhaseChanged: func(_ *domain.SeminarSession) {}, // no-op until SSE hub
+		onTurnAdded:    func(_ *domain.SeminarTurn) {},    // no-op until SSE hub
 	}
 }
 
 // SetOnPhaseChanged registers a callback that is invoked after each
 // authoritative phase transition. The callback receives the updated session
 // (already persisted) and must not block.
-func (s *Scheduler) SetOnPhaseChanged(fn func(sess *domain.Session)) {
+func (s *Scheduler) SetOnPhaseChanged(fn func(sess *domain.SeminarSession)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.onPhaseChanged = fn
@@ -73,7 +73,7 @@ func (s *Scheduler) SetOnPhaseChanged(fn func(sess *domain.Session)) {
 
 // SetOnTurnAdded registers a callback that is invoked after a system turn is
 // inserted for a phase transition. The callback must not block.
-func (s *Scheduler) SetOnTurnAdded(fn func(turn *domain.Turn)) {
+func (s *Scheduler) SetOnTurnAdded(fn func(turn *domain.SeminarTurn)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.onTurnAdded = fn
@@ -83,7 +83,7 @@ func (s *Scheduler) SetOnTurnAdded(fn func(turn *domain.Turn)) {
 // in a non-timed phase (residue_required, done) or is terminal, the call is a
 // no-op. If a timer is already registered for the session it is replaced so
 // this method is safe to call multiple times.
-func (s *Scheduler) Register(sess *domain.Session) {
+func (s *Scheduler) Register(sess *domain.SeminarSession) {
 	if !isTimedPhase(sess.Phase) {
 		return
 	}
@@ -151,7 +151,7 @@ func (s *Scheduler) Stop() {
 // advance is the timer callback. It advances the phase in the database,
 // inserts a system turn for the transcript, fires the onPhaseChanged hook, and
 // chains a new timer for the next timed phase (if any).
-func (s *Scheduler) advance(sessionID string, fromPhase domain.SessionPhase) {
+func (s *Scheduler) advance(sessionID string, fromPhase domain.SeminarSessionPhase) {
 	// Remove our own timer entry before doing any async work so that a
 	// concurrent Register call during this callback is not clobbered.
 	s.mu.Lock()
@@ -215,7 +215,7 @@ func (s *Scheduler) advance(sessionID string, fromPhase domain.SessionPhase) {
 // isTimedPhase reports whether phase p has an automatic countdown timer.
 // Only the three dialogue phases advance automatically; residue_required waits
 // for a user submission and done is terminal.
-func isTimedPhase(p domain.SessionPhase) bool {
+func isTimedPhase(p domain.SeminarSessionPhase) bool {
 	switch p {
 	case domain.PhaseReconstruction, domain.PhaseOpposition, domain.PhaseReversal:
 		return true

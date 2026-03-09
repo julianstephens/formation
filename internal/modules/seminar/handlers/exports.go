@@ -108,12 +108,12 @@ func (h *ExportHandler) ExportSession(c *gin.Context) {
 
 	switch c.DefaultQuery("format", "json") {
 	case "md":
-		body := export.RenderSessionMarkdown(result)
+		body := export.RenderSeminarSessionMarkdown(result)
 		c.Header("Content-Disposition",
 			fmt.Sprintf(`attachment; filename="session-%s.md"`, id))
 		c.Data(http.StatusOK, "text/markdown; charset=utf-8", body)
 	default:
-		body, err := export.RenderSessionJSON(result)
+		body, err := export.RenderSeminarSessionJSON(result)
 		if err != nil {
 			apphttp.Fail(c, http.StatusInternalServerError, "render_error", "failed to render JSON export")
 			return

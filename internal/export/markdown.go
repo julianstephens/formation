@@ -30,7 +30,7 @@ func RenderSeminarMarkdown(e *SeminarExport) []byte {
 	if len(e.Sessions) > 0 {
 		fmt.Fprintf(&sb, "## Sessions (%d)\n\n", len(e.Sessions))
 		for i, se := range e.Sessions {
-			renderSessionSection(&sb, i+1, &se)
+			renderSeminarSessionSection(&sb, i+1, &se)
 		}
 	} else {
 		sb.WriteString("## Sessions\n\n_No sessions recorded._\n")
@@ -41,18 +41,18 @@ func RenderSeminarMarkdown(e *SeminarExport) []byte {
 
 // RenderSessionMarkdown produces a human-readable Markdown document for a
 // single session export including its full transcript.
-func RenderSessionMarkdown(e *SessionExport) []byte {
+func RenderSeminarSessionMarkdown(e *SeminarSessionExport) []byte {
 	var sb strings.Builder
 
 	fmt.Fprintf(&sb, "# Session Export: %s\n\n", e.Session.SectionLabel)
-	renderSessionSection(&sb, 0, e)
+	renderSeminarSessionSection(&sb, 0, e)
 
 	return []byte(sb.String())
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-func renderSessionSection(sb *strings.Builder, n int, se *SessionExport) {
+func renderSeminarSessionSection(sb *strings.Builder, n int, se *SeminarSessionExport) {
 	s := se.Session
 
 	// Section heading: numbered when called from seminar export, plain otherwise.
@@ -82,7 +82,7 @@ func renderSessionSection(sb *strings.Builder, n int, se *SessionExport) {
 		return
 	}
 
-	var lastPhase domain.SessionPhase
+	var lastPhase domain.SeminarSessionPhase
 	for _, t := range se.Turns {
 		// Emit a phase break heading whenever the phase changes.
 		if t.Phase != lastPhase {

@@ -15,11 +15,11 @@ import (
 // EventsHandler streams server-sent events for a single session.
 type EventsHandler struct {
 	hub      *sse.Hub
-	sessions *service.SessionService
+	sessions *service.SeminarSessionService
 }
 
 // NewEventsHandler constructs an EventsHandler.
-func NewEventsHandler(hub *sse.Hub, sessions *service.SessionService) *EventsHandler {
+func NewEventsHandler(hub *sse.Hub, sessions *service.SeminarSessionService) *EventsHandler {
 	return &EventsHandler{hub: hub, sessions: sessions}
 }
 

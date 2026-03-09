@@ -19,7 +19,7 @@ import (
 // gating, prompt assembly, agent call, compliance rewrite, persistence, and
 // SSE emission.
 type TurnService struct {
-	sessions  *repo.SessionRepo
+	sessions  *repo.SeminarSessionRepo
 	seminars  *repo.SeminarRepo
 	assembler *agent.Assembler
 	hub       *sse.Hub
@@ -31,7 +31,7 @@ type TurnService struct {
 // assembles the prompt but skips the agent call, compliance check, and agent
 // turn.
 func NewTurnService(
-	sessions *repo.SessionRepo,
+	sessions *repo.SeminarSessionRepo,
 	seminars *repo.SeminarRepo,
 	assembler *agent.Assembler,
 	hub *sse.Hub,
@@ -55,8 +55,8 @@ type SubmitTurnParams struct {
 
 // SubmitTurnResult carries the turns persisted by a successful submission.
 type SubmitTurnResult struct {
-	UserTurn  *domain.Turn
-	AgentTurn *domain.Turn // nil when no agent client is configured
+	UserTurn  *domain.SeminarTurn
+	AgentTurn *domain.SeminarTurn // nil when no agent client is configured
 }
 
 // SubmitTurn runs the full turn pipeline for a user submission:
@@ -94,7 +94,7 @@ func (s *TurnService) SubmitTurn(
 	}
 
 	// 3. Persist user turn.
-	userTurn, err := s.sessions.InsertTurn(ctx, domain.Turn{
+	userTurn, err := s.sessions.InsertTurn(ctx, domain.SeminarTurn{
 		SessionID: sessionID,
 		Phase:     sess.Phase,
 		Speaker:   "user",
@@ -173,7 +173,7 @@ func (s *TurnService) SubmitTurn(
 	agentFlags := crResult.Flags // contains agent_rewrite when rewritten
 
 	// 7. Persist agent turn with compliance flags.
-	agentTurn, err := s.sessions.InsertTurn(ctx, domain.Turn{
+	agentTurn, err := s.sessions.InsertTurn(ctx, domain.SeminarTurn{
 		SessionID: sessionID,
 		Phase:     sess.Phase,
 		Speaker:   "agent",

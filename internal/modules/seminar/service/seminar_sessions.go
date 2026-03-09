@@ -15,21 +15,21 @@ import (
 )
 
 // SessionService implements all business operations for sessions.
-type SessionService struct {
-	sessions *repo.SessionRepo
+type SeminarSessionService struct {
+	sessions *repo.SeminarSessionRepo
 	seminars *repo.SeminarRepo
 }
 
 // NewSessionService constructs a SessionService backed by the given repositories.
-func NewSessionService(sessions *repo.SessionRepo, seminars *repo.SeminarRepo) *SessionService {
-	return &SessionService{sessions: sessions, seminars: seminars}
+func NewSeminarSessionService(sessions *repo.SeminarSessionRepo, seminars *repo.SeminarRepo) *SeminarSessionService {
+	return &SeminarSessionService{sessions: sessions, seminars: seminars}
 }
 
 // ── Create ─────────────────────────────────────────────────────────────────────
 
 // CreateSessionParams holds all caller-supplied fields for creating a session.
 // Zero-value Mode and ReconMinutes fall back to the seminar's configured defaults.
-type CreateSessionParams struct {
+type CreateSeminarSessionParams struct {
 	SectionLabel string
 	Mode         string // optional; falls back to seminar.DefaultMode
 	ExcerptText  string // required when mode == "excerpt"
@@ -39,11 +39,11 @@ type CreateSessionParams struct {
 // Create validates params, inherits seminar defaults, and persists a new
 // session owned by ownerSub. The initial phase is reconstruction and the
 // phase timer is started immediately.
-func (s *SessionService) Create(
+func (s *SeminarSessionService) Create(
 	ctx context.Context,
 	ownerSub, seminarID string,
-	p CreateSessionParams,
-) (*domain.Session, error) {
+	p CreateSeminarSessionParams,
+) (*domain.SeminarSession, error) {
 	logger := observability.LoggerFromContext(ctx)
 	logger.Debug("creating session",
 		slog.String("owner", ownerSub),
@@ -86,7 +86,7 @@ func (s *SessionService) Create(
 	}
 
 	now := time.Now().UTC()
-	sess := domain.Session{
+	sess := domain.SeminarSession{
 		SeminarID:      seminarID,
 		SectionLabel:   p.SectionLabel,
 		Mode:           p.Mode,
@@ -113,13 +113,13 @@ func (s *SessionService) Create(
 // ── Get ────────────────────────────────────────────────────────────────────────
 
 // SessionDetail wraps a session with its ordered turn list.
-type SessionDetail struct {
-	Session *domain.Session
-	Turns   []domain.Turn
+type SeminarSessionDetail struct {
+	Session *domain.SeminarSession
+	Turns   []domain.SeminarTurn
 }
 
 // Get returns the session and its turns if owned by ownerSub.
-func (s *SessionService) Get(ctx context.Context, id, ownerSub string) (*SessionDetail, error) {
+func (s *SeminarSessionService) Get(ctx context.Context, id, ownerSub string) (*SeminarSessionDetail, error) {
 	logger := observability.LoggerFromContext(ctx)
 	logger.Debug("fetching session", slog.String("id", id), slog.String("owner", ownerSub))
 
@@ -140,13 +140,13 @@ func (s *SessionService) Get(ctx context.Context, id, ownerSub string) (*Session
 		slog.String("phase", string(sess.Phase)),
 		slog.Int("turn_count", len(turns)),
 	)
-	return &SessionDetail{Session: sess, Turns: turns}, nil
+	return &SeminarSessionDetail{Session: sess, Turns: turns}, nil
 }
 
 // ── List ───────────────────────────────────────────────────────────────────────
 
 // List returns all sessions for a seminar in reverse-chronological order.
-func (s *SessionService) List(ctx context.Context, seminarID, ownerSub string) ([]domain.Session, error) {
+func (s *SeminarSessionService) List(ctx context.Context, seminarID, ownerSub string) ([]domain.SeminarSession, error) {
 	sessions, err := s.sessions.ListBySeminarID(ctx, seminarID, ownerSub)
 	if err != nil {
 		return nil, fmt.Errorf("list sessions: %w", err)
@@ -158,7 +158,7 @@ func (s *SessionService) List(ctx context.Context, seminarID, ownerSub string) (
 
 // Delete removes a session and all its associated turns.
 // Returns NotFoundError if the session does not exist or is not owned by ownerSub.
-func (s *SessionService) Delete(ctx context.Context, id, ownerSub string) error {
+func (s *SeminarSessionService) Delete(ctx context.Context, id, ownerSub string) error {
 	err := s.sessions.Delete(ctx, id, ownerSub)
 	if err != nil {
 		return wrapNotFound(err, "session", id)
@@ -171,7 +171,7 @@ func (s *SessionService) Delete(ctx context.Context, id, ownerSub string) error 
 // Abandon transitions an in-progress session to abandoned status.
 // Returns NotFoundError if the session does not exist.
 // Returns ErrSessionTerminalError if the session is already terminal.
-func (s *SessionService) Abandon(ctx context.Context, id, ownerSub string) (*domain.Session, error) {
+func (s *SeminarSessionService) Abandon(ctx context.Context, id, ownerSub string) (*domain.SeminarSession, error) {
 	logger := observability.LoggerFromContext(ctx)
 	logger.Debug("abandoning session", slog.String("id", id), slog.String("owner", ownerSub))
 
@@ -183,7 +183,7 @@ func (s *SessionService) Abandon(ctx context.Context, id, ownerSub string) (*dom
 	}
 	if existing.IsTerminal() {
 		logger.Debug("session already terminal", slog.String("id", id), slog.String("status", string(existing.Status)))
-		return nil, &ErrSessionTerminalError{Status: existing.Status}
+		return nil, &ErrSeminarSessionTerminalError{Status: existing.Status}
 	}
 
 	sess, err := s.sessions.Abandon(ctx, id, ownerSub)
@@ -200,10 +200,10 @@ func (s *SessionService) Abandon(ctx context.Context, id, ownerSub string) (*dom
 // SubmitResidue validates the residue text and, if acceptable, stores it on the
 // session and advances it to done/complete. The session must be in the
 // residue_required phase.
-func (s *SessionService) SubmitResidue(
+func (s *SeminarSessionService) SubmitResidue(
 	ctx context.Context,
 	id, ownerSub, residueText string,
-) (*domain.Session, error) {
+) (*domain.SeminarSession, error) {
 	logger := observability.LoggerFromContext(ctx)
 	logger.Debug("submitting residue", slog.String("id", id), slog.Int("text_length", len(residueText)))
 
@@ -233,9 +233,9 @@ func (s *SessionService) SubmitResidue(
 //  1. Session must not be terminal (complete or abandoned).
 //  2. Phase must permit turns (reconstruction, opposition, reversal).
 //  3. The phase timer must not have elapsed.
-func AssertTurnAllowed(sess *domain.Session) error {
+func AssertTurnAllowed(sess *domain.SeminarSession) error {
 	if sess.IsTerminal() {
-		return &ErrSessionTerminalError{Status: sess.Status}
+		return &ErrSeminarSessionTerminalError{Status: sess.Status}
 	}
 	if !sess.PhaseAllowsTurns() {
 		return &ErrPhaseNoTurnsError{Phase: sess.Phase}

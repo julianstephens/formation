@@ -7,8 +7,8 @@ func RenderSeminarJSON(e *SeminarExport) ([]byte, error) {
 	return json.MarshalIndent(e, "", "  ")
 }
 
-// RenderSessionJSON marshals a session export to pretty-printed JSON.
-func RenderSessionJSON(e *SessionExport) ([]byte, error) {
+// RenderSeminarSessionJSON marshals a seminar session export to pretty-printed JSON.
+func RenderSeminarSessionJSON(e *SeminarSessionExport) ([]byte, error) {
 	return json.MarshalIndent(e, "", "  ")
 }
 

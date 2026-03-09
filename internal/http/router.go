@@ -21,9 +21,9 @@ type RouteRegistrar interface {
 	Register(rg *gin.RouterGroup)
 }
 
-// SessionRouteRegistrar extends RouteRegistrar with a second mount-point used
+// SeminarSessionRouteRegistrar extends RouteRegistrar with a second mount-point used
 // to register the session-creation route nested under /seminars/:id.
-type SessionRouteRegistrar interface {
+type SeminarSessionRouteRegistrar interface {
 	RouteRegistrar
 	RegisterUnderSeminar(rg *gin.RouterGroup)
 }
@@ -53,7 +53,7 @@ type RouterDeps struct {
 	JWKS                  *auth.JWKS
 	Logger                *slog.Logger // optional; falls back to slog.Default()
 	Seminars              RouteRegistrar
-	Sessions              SessionRouteRegistrar
+	Sessions              SeminarSessionRouteRegistrar
 	Events                RouteRegistrar
 	Turns                 RouteRegistrar
 	Exports               ExportRouteRegistrar
@@ -116,27 +116,27 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	}
 
 	// Sessions (top-level operations)
-	sessionsGroup := v1.Group("/sessions")
+	seminarSessionsGroup := v1.Group("/seminar-sessions")
 	if deps.Sessions != nil {
-		deps.Sessions.Register(sessionsGroup)
+		deps.Sessions.Register(seminarSessionsGroup)
 	}
 	// Turns (submit a user turn and receive the agent response).
 	if deps.Turns != nil {
-		deps.Turns.Register(sessionsGroup)
+		deps.Turns.Register(seminarSessionsGroup)
 	} else {
-		sessionsGroup.POST("/:id/turns", placeholder("submit turn"))
+		seminarSessionsGroup.POST("/:id/turns", placeholder("submit turn"))
 	}
 	// Session export.
 	if deps.Exports != nil {
-		deps.Exports.RegisterUnderSessions(sessionsGroup)
+		deps.Exports.RegisterUnderSessions(seminarSessionsGroup)
 	} else {
-		sessionsGroup.GET("/:id/export", placeholder("export session"))
+		seminarSessionsGroup.GET("/:id/export", placeholder("export session"))
 	}
 	// SSE event stream.
 	if deps.Events != nil {
-		deps.Events.Register(sessionsGroup)
+		deps.Events.Register(seminarSessionsGroup)
 	} else {
-		sessionsGroup.GET("/:id/events", placeholder("SSE stream"))
+		seminarSessionsGroup.GET("/:id/events", placeholder("SSE stream"))
 	}
 
 	// ── Tutorials ─────────────────────────────────────────────────────────────

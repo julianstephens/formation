@@ -22,8 +22,8 @@ func newTestScheduler() *scheduler.Scheduler {
 
 // timedSession returns a session in a timed phase with a deadline far enough
 // in the future that the timer will not fire during the test.
-func timedSession(phase domain.SessionPhase) *domain.Session {
-	return &domain.Session{
+func timedSession(phase domain.SeminarSessionPhase) *domain.SeminarSession {
+	return &domain.SeminarSession{
 		ID:          "sess-" + string(phase),
 		Phase:       phase,
 		PhaseEndsAt: time.Now().Add(24 * time.Hour),
@@ -31,8 +31,8 @@ func timedSession(phase domain.SessionPhase) *domain.Session {
 }
 
 // nonTimedSession returns a session in a non-timed phase.
-func nonTimedSession(phase domain.SessionPhase) *domain.Session {
-	return &domain.Session{
+func nonTimedSession(phase domain.SeminarSessionPhase) *domain.SeminarSession {
+	return &domain.SeminarSession{
 		ID:          "sess-" + string(phase),
 		Phase:       phase,
 		PhaseEndsAt: time.Now().Add(-1 * time.Second), // already elapsed; irrelevant
@@ -47,7 +47,7 @@ func nonTimedSession(phase domain.SessionPhase) *domain.Session {
 func TestRegister_nonTimedPhases(t *testing.T) {
 	t.Parallel()
 
-	nonTimed := []domain.SessionPhase{
+	nonTimed := []domain.SeminarSessionPhase{
 		domain.PhaseResidueRequired,
 		domain.PhaseDone,
 	}
@@ -59,7 +59,7 @@ func TestRegister_nonTimedPhases(t *testing.T) {
 
 			called := make(chan struct{}, 1)
 			sched := newTestScheduler()
-			sched.SetOnPhaseChanged(func(_ *domain.Session) {
+			sched.SetOnPhaseChanged(func(_ *domain.SeminarSession) {
 				called <- struct{}{}
 			})
 
@@ -84,7 +84,7 @@ func TestRegister_nonTimedPhases(t *testing.T) {
 func TestRegister_timedPhases_timersRegistered(t *testing.T) {
 	t.Parallel()
 
-	timed := []domain.SessionPhase{
+	timed := []domain.SeminarSessionPhase{
 		domain.PhaseReconstruction,
 		domain.PhaseOpposition,
 		domain.PhaseReversal,
@@ -97,7 +97,7 @@ func TestRegister_timedPhases_timersRegistered(t *testing.T) {
 
 			fired := make(chan struct{}, 1)
 			sched := newTestScheduler()
-			sched.SetOnPhaseChanged(func(_ *domain.Session) {
+			sched.SetOnPhaseChanged(func(_ *domain.SeminarSession) {
 				fired <- struct{}{}
 			})
 
@@ -152,7 +152,7 @@ func TestSetOnPhaseChanged_lateRegistration(t *testing.T) {
 	var mu sync.Mutex
 	calls := 0
 
-	sched.SetOnPhaseChanged(func(_ *domain.Session) {
+	sched.SetOnPhaseChanged(func(_ *domain.SeminarSession) {
 		mu.Lock()
 		calls++
 		mu.Unlock()
@@ -176,8 +176,8 @@ func TestNextPhase_linearProgression(t *testing.T) {
 	t.Parallel()
 
 	sequence := []struct {
-		from domain.SessionPhase
-		want domain.SessionPhase
+		from domain.SeminarSessionPhase
+		want domain.SeminarSessionPhase
 	}{
 		{domain.PhaseReconstruction, domain.PhaseOpposition},
 		{domain.PhaseOpposition, domain.PhaseReversal},
@@ -200,7 +200,7 @@ func TestPhaseAllowsTurns(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		phase domain.SessionPhase
+		phase domain.SeminarSessionPhase
 		allow bool
 	}{
 		{domain.PhaseReconstruction, true},
@@ -211,7 +211,7 @@ func TestPhaseAllowsTurns(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		sess := &domain.Session{Phase: tc.phase, Status: domain.SessionStatusInProgress}
+		sess := &domain.SeminarSession{Phase: tc.phase, Status: domain.SeminarSessionStatusInProgress}
 		got := sess.PhaseAllowsTurns()
 		if got != tc.allow {
 			t.Errorf("Session{Phase:%q}.PhaseAllowsTurns() = %v, want %v", tc.phase, got, tc.allow)
@@ -241,7 +241,7 @@ func TestIsPhaseExpired(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			sess := &domain.Session{PhaseEndsAt: tc.phaseEndsAt}
+			sess := &domain.SeminarSession{PhaseEndsAt: tc.phaseEndsAt}
 			if got := sess.IsPhaseExpired(); got != tc.want {
 				t.Errorf("IsPhaseExpired() = %v, want %v (PhaseEndsAt=%v)", got, tc.want, tc.phaseEndsAt)
 			}

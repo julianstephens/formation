@@ -14,7 +14,7 @@ import (
 type Config struct {
 	// Server
 	Port           string
-	Env            string // "development" | "production"
+	Env            string // "dev" | "prod"
 	AllowedOrigins []string
 
 	// Postgres
@@ -38,6 +38,13 @@ type Config struct {
 	S3SecretKey   string
 	S3BucketName  string
 	S3Region      string
+
+	// Redis
+	RedisUser     string
+	RedisPassword string
+	RedisPort     int
+	RedisHost     string
+	RedisPrefix   string
 }
 
 // LoadFromInfisical loads configuration from Infisical secrets.
@@ -91,6 +98,7 @@ func LoadFromInfisical() (*Config, error) {
 		EnableStreaming:  true,
 		TimerTickSeconds: 2,
 		S3Region:         "us-east-1",
+		RedisPrefix:      "formation:",
 	}
 
 	// Override defaults with values from Infisical
@@ -113,9 +121,15 @@ func LoadFromInfisical() (*Config, error) {
 		case "OPENAI_MODEL":
 			cfg.OpenAIModel = s.SecretValue
 		case "ENABLE_STREAMING":
-			cfg.EnableStreaming, _ = strconv.ParseBool(s.SecretValue)
+			cfg.EnableStreaming, err = strconv.ParseBool(s.SecretValue)
+			if err != nil {
+				return nil, fmt.Errorf("invalid ENABLE_STREAMING: %w", err)
+			}
 		case "TIMER_TICK_SECONDS":
-			cfg.TimerTickSeconds, _ = strconv.Atoi(s.SecretValue)
+			cfg.TimerTickSeconds, err = strconv.Atoi(s.SecretValue)
+			if err != nil {
+				return nil, fmt.Errorf("invalid TIMER_TICK_SECONDS: %w", err)
+			}
 		case "S3_ENDPOINT_URL":
 			cfg.S3EndpointURL = s.SecretValue
 		case "S3_ACCESS_KEY_ID":
@@ -126,6 +140,19 @@ func LoadFromInfisical() (*Config, error) {
 			cfg.S3BucketName = s.SecretValue
 		case "S3_REGION":
 			cfg.S3Region = s.SecretValue
+		case "REDIS_USER":
+			cfg.RedisUser = s.SecretValue
+		case "REDIS_PASSWORD":
+			cfg.RedisPassword = s.SecretValue
+		case "REDIS_PORT":
+			cfg.RedisPort, err = strconv.Atoi(s.SecretValue)
+			if err != nil {
+				return nil, fmt.Errorf("invalid REDIS_PORT: %w", err)
+			}
+		case "REDIS_HOST":
+			cfg.RedisHost = s.SecretValue
+		case "REDIS_PREFIX":
+			cfg.RedisPrefix = s.SecretValue
 		}
 	}
 
@@ -149,6 +176,11 @@ func (c *Config) validate() error {
 		"S3_ACCESS_KEY_ID": c.S3AccessKeyID,
 		"S3_SECRET_KEY":    c.S3SecretKey,
 		"S3_BUCKET_NAME":   c.S3BucketName,
+		"REDIS_USER":       c.RedisUser,
+		"REDIS_PASSWORD":   c.RedisPassword,
+		"REDIS_PORT":       strconv.Itoa(c.RedisPort),
+		"REDIS_HOST":       c.RedisHost,
+		"REDIS_PREFIX":     c.RedisPrefix,
 	}
 
 	var missing []string

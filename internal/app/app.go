@@ -86,9 +86,9 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 	semSvc := seminarService.NewSeminarService(semRepo)
 	seminarHandler := seminarHandlers.NewSeminarHandler(semSvc)
 
-	sessRepo := seminarRepo.NewSessionRepo(base)
-	sessSvc := seminarService.NewSessionService(sessRepo, semRepo)
-	sessionHandler := seminarHandlers.NewSessionHandler(sessSvc)
+	sessRepo := seminarRepo.NewSeminarSessionRepo(base)
+	sessSvc := seminarService.NewSeminarSessionService(sessRepo, semRepo)
+	sessionHandler := seminarHandlers.NewSeminarSessionHandler(sessSvc)
 
 	// 5. Start the phase scheduler and recover any in-progress sessions.
 	sched := scheduler.New(sessRepo, logger)

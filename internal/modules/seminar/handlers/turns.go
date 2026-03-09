@@ -68,10 +68,10 @@ func (h *TurnHandler) SubmitTurn(c *gin.Context) {
 	}
 
 	resp := apphttp.SubmitTurnResponse{
-		UserTurn: toTurnResponse(*result.UserTurn),
+		UserTurn: toSeminarTurnResponse(*result.UserTurn),
 	}
 	if result.AgentTurn != nil {
-		ar := toTurnResponse(*result.AgentTurn)
+		ar := toSeminarTurnResponse(*result.AgentTurn)
 		resp.AgentTurn = &ar
 	}
 
@@ -86,5 +86,5 @@ func handleTurnServiceError(c *gin.Context, err error) {
 		apphttp.Fail(c, http.StatusBadRequest, "missing_locator", err.Error())
 		return
 	}
-	handleSessionServiceError(c, err)
+	handleSeminarSessionServiceError(c, err)
 }

@@ -66,7 +66,7 @@ type TimerTickPayload struct {
 // TurnAddedPayload is carried by turn_added events.
 type TurnAddedPayload struct {
 	SessionID string      `json:"session_id"`
-	Turn      domain.Turn `json:"turn"`
+	Turn      domain.SeminarTurn `json:"turn"`
 }
 
 // TutorialTurnAddedPayload is carried by turn_added events for tutorial sessions.
@@ -201,7 +201,7 @@ func (h *Hub) Publish(sessionID string, event Event) {
 
 // PublishPhaseChanged emits a phase_changed event for sessionID based on the
 // updated session returned by the scheduler's AdvancePhase call.
-func (h *Hub) PublishPhaseChanged(sess *domain.Session) {
+func (h *Hub) PublishPhaseChanged(sess *domain.SeminarSession) {
 	payload := PhaseChangedPayload{
 		SessionID:      sess.ID,
 		Phase:          string(sess.Phase),
@@ -217,7 +217,7 @@ func (h *Hub) PublishPhaseChanged(sess *domain.Session) {
 }
 
 // PublishTurnAdded emits a turn_added event for the given turn.
-func (h *Hub) PublishTurnAdded(t *domain.Turn) {
+func (h *Hub) PublishTurnAdded(t *domain.SeminarTurn) {
 	h.Publish(t.SessionID, Event{
 		Type: EventTurnAdded,
 		Data: TurnAddedPayload{SessionID: t.SessionID, Turn: *t},

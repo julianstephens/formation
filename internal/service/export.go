@@ -17,7 +17,7 @@ import (
 // package renderers so that the service layer stays format-agnostic.
 type ExportService struct {
 	seminars  *seminarRepo.SeminarRepo
-	sessions  *seminarRepo.SessionRepo
+	sessions  *seminarRepo.SeminarSessionRepo
 	tutorials *tutorialRepo.TutorialRepo
 	s3        *storage.S3Client
 	log       *slog.Logger
@@ -26,7 +26,7 @@ type ExportService struct {
 // NewExportService constructs an ExportService backed by the given repositories.
 func NewExportService(
 	seminars *seminarRepo.SeminarRepo,
-	sessions *seminarRepo.SessionRepo,
+	sessions *seminarRepo.SeminarSessionRepo,
 	tutorials *tutorialRepo.TutorialRepo,
 ) *ExportService {
 	return &ExportService{seminars: seminars, sessions: sessions, tutorials: tutorials}
@@ -57,13 +57,13 @@ func (s *ExportService) ExportSeminar(
 		return nil, fmt.Errorf("load sessions for export: %w", err)
 	}
 
-	sessionExports := make([]export.SessionExport, 0, len(sessions))
+	sessionExports := make([]export.SeminarSessionExport, 0, len(sessions))
 	for _, sess := range sessions {
 		turns, err := s.sessions.ListTurns(ctx, sess.ID, ownerSub)
 		if err != nil {
 			return nil, fmt.Errorf("load turns for session %s: %w", sess.ID, err)
 		}
-		sessionExports = append(sessionExports, export.SessionExport{
+		sessionExports = append(sessionExports, export.SeminarSessionExport{
 			Session: sess,
 			Turns:   turns,
 		})
@@ -81,7 +81,7 @@ func (s *ExportService) ExportSeminar(
 func (s *ExportService) ExportSession(
 	ctx context.Context,
 	sessionID, ownerSub string,
-) (*export.SessionExport, error) {
+) (*export.SeminarSessionExport, error) {
 	sess, err := s.sessions.GetByID(ctx, sessionID, ownerSub)
 	if err != nil {
 		return nil, WrapNotFound(err, "session", sessionID)
@@ -92,7 +92,7 @@ func (s *ExportService) ExportSession(
 		return nil, fmt.Errorf("load turns for export: %w", err)
 	}
 
-	return &export.SessionExport{
+	return &export.SeminarSessionExport{
 		Session: *sess,
 		Turns:   turns,
 	}, nil
@@ -250,7 +250,7 @@ func (s *ExportService) UploadAndPresignSession(
 	}
 
 	content, contentType, ext, err := renderExport(result, format,
-		export.RenderSessionMarkdown, export.RenderSessionJSON)
+		export.RenderSeminarSessionMarkdown, export.RenderSeminarSessionJSON)
 	if err != nil {
 		return "", err
 	}

@@ -170,13 +170,13 @@ func TestIntegration_SeminarRepo_Delete_ownerEnforced(t *testing.T) {
 // future PhaseEndsAt so the scheduler would not immediately fire.
 func seedSession(
 	t *testing.T,
-	sr *repo.SessionRepo,
+	sr *repo.SeminarSessionRepo,
 	seminarID, ownerSub string,
-) *domain.Session {
+) *domain.SeminarSession {
 	t.Helper()
 
 	now := time.Now().UTC()
-	sess, err := sr.Create(context.Background(), ownerSub, domain.Session{
+	sess, err := sr.Create(context.Background(), ownerSub, domain.SeminarSession{
 		SeminarID:      seminarID,
 		SectionLabel:   "ch. 1",
 		Mode:           "paperback",
@@ -196,7 +196,7 @@ func TestIntegration_SessionRepo_GetByID_ownerEnforced(t *testing.T) {
 	pool := integrationPool(t)
 	base := sharedRepo.Base{Pool: pool}
 	sr := repo.NewSeminarRepo(base)
-	sessR := repo.NewSessionRepo(base)
+	sessR := repo.NewSeminarSessionRepo(base)
 
 	owner := uniqueSub(t)
 	attacker := uniqueSub(t) + "_attacker"
@@ -223,7 +223,7 @@ func TestIntegration_SessionRepo_Abandon_ownerEnforced(t *testing.T) {
 	pool := integrationPool(t)
 	base := sharedRepo.Base{Pool: pool}
 	sr := repo.NewSeminarRepo(base)
-	sessR := repo.NewSessionRepo(base)
+	sessR := repo.NewSeminarSessionRepo(base)
 
 	owner := uniqueSub(t)
 	attacker := uniqueSub(t) + "_attacker"
@@ -242,7 +242,7 @@ func TestIntegration_SessionRepo_Abandon_ownerEnforced(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetByID after failed abandon: %v", err)
 	}
-	if got.Status != domain.SessionStatusInProgress {
+	if got.Status != domain.SeminarSessionStatusInProgress {
 		t.Errorf("session status = %q after failed abandon, want in_progress", got.Status)
 	}
 }
@@ -253,7 +253,7 @@ func TestIntegration_SessionRepo_ListBySeminar_isolatedByOwner(t *testing.T) {
 	pool := integrationPool(t)
 	base := sharedRepo.Base{Pool: pool}
 	srSeminar := repo.NewSeminarRepo(base)
-	srSession := repo.NewSessionRepo(base)
+	srSession := repo.NewSeminarSessionRepo(base)
 
 	owner := uniqueSub(t)
 	attacker := uniqueSub(t) + "_attacker"

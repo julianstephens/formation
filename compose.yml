@@ -16,6 +16,19 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    container_name: formation_redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    environment:
+      REDIS_PASSWORD: formation
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   api:
     container_name: formation_api
     build:
@@ -28,6 +41,8 @@ services:
       DATABASE_URL: postgres://formation:formation@db:5432/formation?sslmode=disable
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   web:

@@ -45,8 +45,8 @@ type SeminarResponse struct {
 
 // ── Session request DTOs ───────────────────────────────────────────────────────
 
-// CreateSessionRequest is the body for POST /v1/seminars/:id/sessions.
-type CreateSessionRequest struct {
+// CreateSeminarSessionRequest is the body for POST /v1/seminars/:id/sessions.
+type CreateSeminarSessionRequest struct {
 	SectionLabel string `json:"section_label" binding:"required"`
 	Mode         string `json:"mode"`          // optional; falls back to seminar default
 	ExcerptText  string `json:"excerpt_text"`  // required when mode == "excerpt"
@@ -60,27 +60,27 @@ type SubmitResidueRequest struct {
 
 // ── Session response DTOs ──────────────────────────────────────────────────────
 
-// TurnResponse is the JSON representation of a single turn.
-type TurnResponse struct {
+// SeminarTurnResponse is the JSON representation of a single turn.
+type SeminarTurnResponse struct {
 	ID        string              `json:"id"`
 	SessionID string              `json:"session_id"`
-	Phase     domain.SessionPhase `json:"phase"`
+	Phase     domain.SeminarSessionPhase `json:"phase"`
 	Speaker   string              `json:"speaker"`
 	Text      string              `json:"text"`
 	Flags     []string            `json:"flags"`
 	CreatedAt time.Time           `json:"created_at"`
 }
 
-// SessionResponse is the JSON representation of a Session resource.
-type SessionResponse struct {
+// SeminarSessionResponse is the JSON representation of a Session resource.
+type SeminarSessionResponse struct {
 	ID             string               `json:"id"`
 	SeminarID      string               `json:"seminar_id"`
 	SectionLabel   string               `json:"section_label"`
 	Mode           string               `json:"mode"`
 	ExcerptText    string               `json:"excerpt_text,omitempty"`
 	ExcerptHash    string               `json:"excerpt_hash,omitempty"`
-	Status         domain.SessionStatus `json:"status"`
-	Phase          domain.SessionPhase  `json:"phase"`
+	Status         domain.SeminarSessionStatus `json:"status"`
+	Phase          domain.SeminarSessionPhase  `json:"phase"`
 	ReconMinutes   int                  `json:"recon_minutes"`
 	PhaseStartedAt time.Time            `json:"phase_started_at"`
 	PhaseEndsAt    time.Time            `json:"phase_ends_at"`
@@ -89,10 +89,10 @@ type SessionResponse struct {
 	ResidueText    string               `json:"residue_text,omitempty"`
 }
 
-// SessionDetailResponse is the JSON representation of a session with its turns.
-type SessionDetailResponse struct {
-	SessionResponse
-	Turns []TurnResponse `json:"turns"`
+// SeminarSessionDetailResponse is the JSON representation of a session with its turns.
+type SeminarSessionDetailResponse struct {
+	SeminarSessionResponse
+	Turns []SeminarTurnResponse `json:"turns"`
 }
 
 // ── Tutorial request DTOs ──────────────────────────────────────────────────────
@@ -192,8 +192,8 @@ type SubmitTutorialTurnRequest struct {
 // SubmitTurnResponse is returned by POST /v1/sessions/:id/turns.
 // AgentTurn is nil when the agent client is not yet configured.
 type SubmitTurnResponse struct {
-	UserTurn  TurnResponse  `json:"user_turn"`
-	AgentTurn *TurnResponse `json:"agent_turn,omitempty"`
+	UserTurn  SeminarTurnResponse  `json:"user_turn"`
+	AgentTurn *SeminarTurnResponse `json:"agent_turn,omitempty"`
 }
 
 // TutorialTurnResponse is the JSON representation of a TutorialTurn resource.

@@ -119,8 +119,8 @@ type AssembleParams struct {
 	SectionLabel  string
 	Mode          string              // "paperback" or "excerpt"
 	ExcerptText   string              // non-empty when Mode == "excerpt"
-	Phase         domain.SessionPhase // active phase for the addendum
-	Turns         []domain.Turn       // full chronological turn list
+	Phase         domain.SeminarSessionPhase // active phase for the addendum
+	Turns         []domain.SeminarTurn       // full chronological turn list
 }
 
 // Assemble composes the ordered message slice for a session agent call.

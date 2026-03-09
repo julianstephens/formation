@@ -24,18 +24,18 @@ func wrapNotFound(err error, resource, id string) error {
 	return fmt.Errorf("%s %s: %w", resource, id, err)
 }
 
-// ErrSessionTerminalError signals that a session has ended and accepts no further turns.
-type ErrSessionTerminalError struct {
-	Status domain.SessionStatus
+// ErrSeminarSessionTerminalError signals that a session has ended and accepts no further turns.
+type ErrSeminarSessionTerminalError struct {
+	Status domain.SeminarSessionStatus
 }
 
-func (e *ErrSessionTerminalError) Error() string {
+func (e *ErrSeminarSessionTerminalError) Error() string {
 	return fmt.Sprintf("session is %s and no longer accepts turns", e.Status)
 }
 
 // ErrPhaseNoTurnsError signals that the current phase does not accept user turns.
 type ErrPhaseNoTurnsError struct {
-	Phase domain.SessionPhase
+	Phase domain.SeminarSessionPhase
 }
 
 func (e *ErrPhaseNoTurnsError) Error() string {
@@ -44,12 +44,12 @@ func (e *ErrPhaseNoTurnsError) Error() string {
 
 // ErrPhaseExpiredError signals that a turn was submitted after the phase timer elapsed.
 type ErrPhaseExpiredError struct {
-	Phase domain.SessionPhase
+	Phase domain.SeminarSessionPhase
 }
 
 func (e *ErrPhaseExpiredError) Error() string {
 	return fmt.Sprintf("phase %q has expired; wait for next phase", e.Phase)
 }
 
-// ErrSessionInvalidPhase signals an operation that's not allowed in the current phase.
-var ErrSessionInvalidPhase = errors.New("session is not in the correct phase for this operation")
+// ErrSeminarSessionInvalidPhase signals an operation that's not allowed in the current phase.
+var ErrSeminarSessionInvalidPhase = errors.New("session is not in the correct phase for this operation")

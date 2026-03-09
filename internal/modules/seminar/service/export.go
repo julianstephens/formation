@@ -13,13 +13,13 @@ import (
 // package renderers so that the service layer stays format-agnostic.
 type ExportService struct {
 	seminars *repo.SeminarRepo
-	sessions *repo.SessionRepo
+	sessions *repo.SeminarSessionRepo
 }
 
 // NewExportService constructs an ExportService backed by the given repositories.
 func NewExportService(
 	seminars *repo.SeminarRepo,
-	sessions *repo.SessionRepo,
+	sessions *repo.SeminarSessionRepo,
 ) *ExportService {
 	return &ExportService{seminars: seminars, sessions: sessions}
 }
@@ -41,13 +41,13 @@ func (s *ExportService) ExportSeminar(
 		return nil, fmt.Errorf("load sessions for export: %w", err)
 	}
 
-	sessionExports := make([]export.SessionExport, 0, len(sessions))
+	sessionExports := make([]export.SeminarSessionExport, 0, len(sessions))
 	for _, sess := range sessions {
 		turns, err := s.sessions.ListTurns(ctx, sess.ID, ownerSub)
 		if err != nil {
 			return nil, fmt.Errorf("load turns for session %s: %w", sess.ID, err)
 		}
-		sessionExports = append(sessionExports, export.SessionExport{
+		sessionExports = append(sessionExports, export.SeminarSessionExport{
 			Session: sess,
 			Turns:   turns,
 		})
@@ -65,7 +65,7 @@ func (s *ExportService) ExportSeminar(
 func (s *ExportService) ExportSession(
 	ctx context.Context,
 	sessionID, ownerSub string,
-) (*export.SessionExport, error) {
+) (*export.SeminarSessionExport, error) {
 	sess, err := s.sessions.GetByID(ctx, sessionID, ownerSub)
 	if err != nil {
 		return nil, wrapNotFound(err, "session", sessionID)
@@ -76,7 +76,7 @@ func (s *ExportService) ExportSession(
 		return nil, fmt.Errorf("load turns for export: %w", err)
 	}
 
-	return &export.SessionExport{
+	return &export.SeminarSessionExport{
 		Session: *sess,
 		Turns:   turns,
 	}, nil

@@ -173,8 +173,8 @@ func TestValidateResidue_missingTensionComponent(t *testing.T) {
 // ── AssertTurnAllowed ─────────────────────────────────────────────────────────
 
 // sessionWith returns a minimal Session for testing AssertTurnAllowed.
-func sessionWith(status domain.SessionStatus, phase domain.SessionPhase, endsAt time.Time) *domain.Session {
-	return &domain.Session{
+func sessionWith(status domain.SeminarSessionStatus, phase domain.SeminarSessionPhase, endsAt time.Time) *domain.SeminarSession {
+	return &domain.SeminarSession{
 		Status:      status,
 		Phase:       phase,
 		PhaseEndsAt: endsAt,
@@ -189,7 +189,7 @@ var (
 func TestAssertTurnAllowed_timedPhaseNotExpired(t *testing.T) {
 	t.Parallel()
 
-	timedPhases := []domain.SessionPhase{
+	timedPhases := []domain.SeminarSessionPhase{
 		domain.PhaseReconstruction,
 		domain.PhaseOpposition,
 		domain.PhaseReversal,
@@ -198,7 +198,7 @@ func TestAssertTurnAllowed_timedPhaseNotExpired(t *testing.T) {
 		phase := phase
 		t.Run(string(phase), func(t *testing.T) {
 			t.Parallel()
-			sess := sessionWith(domain.SessionStatusInProgress, phase, future)
+			sess := sessionWith(domain.SeminarSessionStatusInProgress, phase, future)
 			if err := AssertTurnAllowed(sess); err != nil {
 				t.Errorf("AssertTurnAllowed() = %v, want nil for timed in-progress phase", err)
 			}
@@ -209,9 +209,9 @@ func TestAssertTurnAllowed_timedPhaseNotExpired(t *testing.T) {
 func TestAssertTurnAllowed_terminalStatus(t *testing.T) {
 	t.Parallel()
 
-	terminal := []domain.SessionStatus{
-		domain.SessionStatusComplete,
-		domain.SessionStatusAbandoned,
+	terminal := []domain.SeminarSessionStatus{
+		domain.SeminarSessionStatusComplete,
+		domain.SeminarSessionStatusAbandoned,
 	}
 	for _, status := range terminal {
 		status := status
@@ -222,9 +222,9 @@ func TestAssertTurnAllowed_terminalStatus(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected error for terminal session, got nil")
 			}
-			var te *ErrSessionTerminalError
+			var te *ErrSeminarSessionTerminalError
 			if !errors.As(err, &te) {
-				t.Errorf("error type = %T, want *ErrSessionTerminalError", err)
+				t.Errorf("error type = %T, want *ErrSeminarSessionTerminalError", err)
 			}
 		})
 	}
@@ -233,7 +233,7 @@ func TestAssertTurnAllowed_terminalStatus(t *testing.T) {
 func TestAssertTurnAllowed_nonTurnPhase(t *testing.T) {
 	t.Parallel()
 
-	nonTurnPhases := []domain.SessionPhase{
+	nonTurnPhases := []domain.SeminarSessionPhase{
 		domain.PhaseResidueRequired,
 		domain.PhaseDone,
 	}
@@ -241,7 +241,7 @@ func TestAssertTurnAllowed_nonTurnPhase(t *testing.T) {
 		phase := phase
 		t.Run(string(phase), func(t *testing.T) {
 			t.Parallel()
-			sess := sessionWith(domain.SessionStatusInProgress, phase, future)
+			sess := sessionWith(domain.SeminarSessionStatusInProgress, phase, future)
 			err := AssertTurnAllowed(sess)
 			if err == nil {
 				t.Fatal("expected error for non-turn phase, got nil")
@@ -257,7 +257,7 @@ func TestAssertTurnAllowed_nonTurnPhase(t *testing.T) {
 func TestAssertTurnAllowed_expiredPhase(t *testing.T) {
 	t.Parallel()
 
-	sess := sessionWith(domain.SessionStatusInProgress, domain.PhaseReconstruction, past)
+	sess := sessionWith(domain.SeminarSessionStatusInProgress, domain.PhaseReconstruction, past)
 	err := AssertTurnAllowed(sess)
 	if err == nil {
 		t.Fatal("expected error for expired phase, got nil")

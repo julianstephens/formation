@@ -16,21 +16,21 @@ import (
 // SessionRepo handles all database operations for sessions and turns.
 // Every method that accesses user-owned rows accepts ownerSub and enforces it
 // in the WHERE clause, making cross-owner reads structurally impossible.
-type SessionRepo struct {
+type SeminarSessionRepo struct {
 	repo.Base
 }
 
 // NewSessionRepo constructs a SessionRepo backed by the shared connection pool.
-func NewSessionRepo(b repo.Base) *SessionRepo {
-	return &SessionRepo{Base: b}
+func NewSeminarSessionRepo(b repo.Base) *SeminarSessionRepo {
+	return &SeminarSessionRepo{Base: b}
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
 // Create inserts a new session and returns the fully-populated record.
-func (r *SessionRepo) Create(ctx context.Context, ownerSub string, s domain.Session) (*domain.Session, error) {
+func (r *SeminarSessionRepo) Create(ctx context.Context, ownerSub string, s domain.SeminarSession) (*domain.SeminarSession, error) {
 	const q = `
-		INSERT INTO sessions
+		INSERT INTO seminar_sessions
 			(seminar_id, owner_sub, section_label, mode,
 			 excerpt_text, excerpt_hash, recon_minutes,
 			 phase_started_at, phase_ends_at)
@@ -51,14 +51,14 @@ func (r *SessionRepo) Create(ctx context.Context, ownerSub string, s domain.Sess
 
 // GetByID returns the session with the given id, enforcing owner_sub.
 // Returns repo.ErrNotFound if no matching row exists.
-func (r *SessionRepo) GetByID(ctx context.Context, id, ownerSub string) (*domain.Session, error) {
+func (r *SeminarSessionRepo) GetByID(ctx context.Context, id, ownerSub string) (*domain.SeminarSession, error) {
 	const q = `
 		SELECT id, seminar_id, owner_sub, section_label, mode,
 		       COALESCE(excerpt_text,''), COALESCE(excerpt_hash,''),
 		       status, phase, recon_minutes,
 		       phase_started_at, phase_ends_at, started_at, ended_at,
 		       COALESCE(residue_text,'')
-		FROM sessions
+		FROM seminar_sessions
 		WHERE id = $1 AND owner_sub = $2`
 
 	row := r.Pool.QueryRow(ctx, q, id, ownerSub)
@@ -68,9 +68,9 @@ func (r *SessionRepo) GetByID(ctx context.Context, id, ownerSub string) (*domain
 // Abandon marks an in_progress session as abandoned and records ended_at.
 // Returns repo.ErrNotFound if the session does not exist, belongs to another
 // owner, or is already terminal (the UPDATE matches no rows).
-func (r *SessionRepo) Abandon(ctx context.Context, id, ownerSub string) (*domain.Session, error) {
+func (r *SeminarSessionRepo) Abandon(ctx context.Context, id, ownerSub string) (*domain.SeminarSession, error) {
 	const q = `
-		UPDATE sessions
+		UPDATE seminar_sessions
 		SET status   = 'abandoned',
 		    ended_at = now()
 		WHERE id = $1 AND owner_sub = $2
@@ -97,9 +97,9 @@ func (r *SessionRepo) Abandon(ctx context.Context, id, ownerSub string) (*domain
 // precondition check without a separate SELECT.
 // Returns repo.ErrNotFound if the session is not in residue_required phase,
 // belongs to another owner, or does not exist.
-func (r *SessionRepo) SetResidue(ctx context.Context, id, ownerSub, residueText string) (*domain.Session, error) {
+func (r *SeminarSessionRepo) SetResidue(ctx context.Context, id, ownerSub, residueText string) (*domain.SeminarSession, error) {
 	const q = `
-		UPDATE sessions
+		UPDATE seminar_sessions
 		SET residue_text = $3,
 		    phase        = 'done',
 		    status       = 'complete',
@@ -126,13 +126,13 @@ func (r *SessionRepo) SetResidue(ctx context.Context, id, ownerSub, residueText 
 
 // Delete removes a session and all associated turns.
 // Returns repo.ErrNotFound if the session does not exist or belongs to another owner.
-func (r *SessionRepo) Delete(ctx context.Context, id, ownerSub string) error {
+func (r *SeminarSessionRepo) Delete(ctx context.Context, id, ownerSub string) error {
 	// Delete associated turns first (cascade via foreign key would also work, but explicit is clearer)
 	const deleteTurnsQ = `
-		DELETE FROM turns
+		DELETE FROM seminar_turns
 		WHERE session_id = $1
 		  AND session_id IN (
-			  SELECT id FROM sessions WHERE id = $1 AND owner_sub = $2
+			  SELECT id FROM seminar_sessions WHERE id = $1 AND owner_sub = $2
 		  )`
 
 	_, err := r.Pool.Exec(ctx, deleteTurnsQ, id, ownerSub)
@@ -142,7 +142,7 @@ func (r *SessionRepo) Delete(ctx context.Context, id, ownerSub string) error {
 
 	// Delete the session itself
 	const deleteSessionQ = `
-		DELETE FROM sessions
+		DELETE FROM seminar_sessions
 		WHERE id = $1 AND owner_sub = $2`
 
 	result, err := r.Pool.Exec(ctx, deleteSessionQ, id, ownerSub)
@@ -161,11 +161,11 @@ func (r *SessionRepo) Delete(ctx context.Context, id, ownerSub string) error {
 
 // ListTurns returns all turns for a session in chronological order.
 // Ownership is verified via a join to the sessions table.
-func (r *SessionRepo) ListTurns(ctx context.Context, sessionID, ownerSub string) ([]domain.Turn, error) {
+func (r *SeminarSessionRepo) ListTurns(ctx context.Context, sessionID, ownerSub string) ([]domain.SeminarTurn, error) {
 	const q = `
 		SELECT t.id, t.session_id, t.phase, t.speaker, t.text, t.flags, t.created_at
-		FROM turns t
-		JOIN sessions s ON s.id = t.session_id
+		FROM seminar_turns t
+		JOIN seminar_sessions s ON s.id = t.session_id
 		WHERE t.session_id = $1 AND s.owner_sub = $2
 		ORDER BY t.created_at`
 
@@ -175,7 +175,7 @@ func (r *SessionRepo) ListTurns(ctx context.Context, sessionID, ownerSub string)
 	}
 	defer rows.Close()
 
-	var result []domain.Turn
+	var result []domain.SeminarTurn
 	for rows.Next() {
 		t, err := scanTurn(rows)
 		if err != nil {
@@ -187,21 +187,21 @@ func (r *SessionRepo) ListTurns(ctx context.Context, sessionID, ownerSub string)
 		return nil, fmt.Errorf("list turns iterate: %w", err)
 	}
 	if result == nil {
-		result = []domain.Turn{}
+		result = []domain.SeminarTurn{}
 	}
 	return result, nil
 }
 
 // ListBySeminarID returns all sessions for a seminar in reverse-chronological
 // order. Ownership is enforced via the owner_sub column.
-func (r *SessionRepo) ListBySeminarID(ctx context.Context, seminarID, ownerSub string) ([]domain.Session, error) {
+func (r *SeminarSessionRepo) ListBySeminarID(ctx context.Context, seminarID, ownerSub string) ([]domain.SeminarSession, error) {
 	const q = `
 		SELECT id, seminar_id, owner_sub, section_label, mode,
 		       COALESCE(excerpt_text,''), COALESCE(excerpt_hash,''),
 		       status, phase, recon_minutes,
 		       phase_started_at, phase_ends_at, started_at, ended_at,
 		       COALESCE(residue_text,'')
-		FROM sessions
+		FROM seminar_sessions
 		WHERE seminar_id = $1 AND owner_sub = $2
 		ORDER BY started_at DESC`
 
@@ -211,7 +211,7 @@ func (r *SessionRepo) ListBySeminarID(ctx context.Context, seminarID, ownerSub s
 	}
 	defer rows.Close()
 
-	var result []domain.Session
+	var result []domain.SeminarSession
 	for rows.Next() {
 		s, err := scanSession(rows)
 		if err != nil {
@@ -223,7 +223,7 @@ func (r *SessionRepo) ListBySeminarID(ctx context.Context, seminarID, ownerSub s
 		return nil, fmt.Errorf("list sessions by seminar iterate: %w", err)
 	}
 	if result == nil {
-		result = []domain.Session{}
+		result = []domain.SeminarSession{}
 	}
 	return result, nil
 }
@@ -233,14 +233,14 @@ func (r *SessionRepo) ListBySeminarID(ctx context.Context, seminarID, ownerSub s
 // ListInProgress returns all sessions that are in_progress and in a timed
 // phase (reconstruction, opposition, or reversal). Used by the scheduler on
 // startup to re-register phase timers.
-func (r *SessionRepo) ListInProgress(ctx context.Context) ([]domain.Session, error) {
+func (r *SeminarSessionRepo) ListInProgress(ctx context.Context) ([]domain.SeminarSession, error) {
 	const q = `
 		SELECT id, seminar_id, owner_sub, section_label, mode,
 		       COALESCE(excerpt_text,''), COALESCE(excerpt_hash,''),
 		       status, phase, recon_minutes,
 		       phase_started_at, phase_ends_at, started_at, ended_at,
 		       COALESCE(residue_text,'')
-		FROM sessions
+		FROM seminar_sessions
 		WHERE status = 'in_progress'
 		  AND phase IN ('reconstruction', 'opposition', 'reversal')`
 
@@ -250,7 +250,7 @@ func (r *SessionRepo) ListInProgress(ctx context.Context) ([]domain.Session, err
 	}
 	defer rows.Close()
 
-	var result []domain.Session
+	var result []domain.SeminarSession
 	for rows.Next() {
 		s, err := scanSession(rows)
 		if err != nil {
@@ -273,11 +273,11 @@ func (r *SessionRepo) ListInProgress(ctx context.Context) ([]domain.Session, err
 // Returns (nil, false, nil) when the session has already been advanced beyond
 // fromPhase or is no longer in_progress (no-op, not an error).
 // Returns (nil, false, repo.ErrNotFound) when the session row does not exist.
-func (r *SessionRepo) AdvancePhase(
+func (r *SeminarSessionRepo) AdvancePhase(
 	ctx context.Context,
 	sessionID string,
-	fromPhase domain.SessionPhase,
-) (*domain.Session, bool, error) {
+	fromPhase domain.SeminarSessionPhase,
+) (*domain.SeminarSession, bool, error) {
 	tx, err := r.Pool.Begin(ctx)
 	if err != nil {
 		return nil, false, fmt.Errorf("advance phase begin tx: %w", err)
@@ -287,7 +287,7 @@ func (r *SessionRepo) AdvancePhase(
 	// Lock the row to serialize concurrent scheduler callbacks.
 	const lockQ = `
 		SELECT id, phase, status, recon_minutes, phase_ends_at
-		FROM sessions
+		FROM seminar_sessions
 		WHERE id = $1
 		FOR UPDATE`
 
@@ -307,12 +307,12 @@ func (r *SessionRepo) AdvancePhase(
 	}
 
 	// Race-safe no-op: session already advanced or is terminal.
-	if domain.SessionPhase(rowPhase) != fromPhase ||
-		domain.SessionStatus(rowStatus) != domain.SessionStatusInProgress {
+	if domain.SeminarSessionPhase(rowPhase) != fromPhase ||
+		domain.SeminarSessionStatus(rowStatus) != domain.SeminarSessionStatusInProgress {
 		return nil, false, nil
 	}
 
-	next := domain.NextPhase(domain.SessionPhase(rowPhase))
+	next := domain.NextPhase(domain.SeminarSessionPhase(rowPhase))
 	now := time.Now().UTC()
 
 	// Compute new phase_ends_at for timed phases; keep existing value otherwise.
@@ -323,15 +323,15 @@ func (r *SessionRepo) AdvancePhase(
 	}
 
 	// Advancing to done also marks the session complete.
-	newStatus := domain.SessionStatusInProgress
+	newStatus := domain.SeminarSessionStatusInProgress
 	var endedAt *time.Time
 	if next == domain.PhaseDone {
-		newStatus = domain.SessionStatusComplete
+		newStatus = domain.SeminarSessionStatusComplete
 		endedAt = &now
 	}
 
 	const updateQ = `
-		UPDATE sessions SET
+		UPDATE seminar_sessions SET
 			phase            = $2,
 			status           = $3,
 			phase_started_at = $4,
@@ -363,14 +363,14 @@ func (r *SessionRepo) AdvancePhase(
 // Intended for use by the system-turn and agent-turn paths that do not require
 // owner_sub enforcement (the session_id foreign key provides referential
 // integrity).
-func (r *SessionRepo) InsertTurn(ctx context.Context, t domain.Turn) (*domain.Turn, error) {
+func (r *SeminarSessionRepo) InsertTurn(ctx context.Context, t domain.SeminarTurn) (*domain.SeminarTurn, error) {
 	flags, err := json.Marshal(t.Flags)
 	if err != nil {
 		return nil, fmt.Errorf("marshal turn flags: %w", err)
 	}
 
 	const q = `
-		INSERT INTO turns (session_id, phase, speaker, text, flags)
+		INSERT INTO seminar_turns (session_id, phase, speaker, text, flags)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, session_id, phase, speaker, text, flags, created_at`
 
@@ -386,8 +386,8 @@ type sessionScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanSession(row sessionScanner) (*domain.Session, error) {
-	var s domain.Session
+func scanSession(row sessionScanner) (*domain.SeminarSession, error) {
+	var s domain.SeminarSession
 	var status, phase string
 	err := row.Scan(
 		&s.ID, &s.SeminarID, &s.OwnerSub, &s.SectionLabel, &s.Mode,
@@ -403,8 +403,8 @@ func scanSession(row sessionScanner) (*domain.Session, error) {
 		}
 		return nil, fmt.Errorf("scan session: %w", err)
 	}
-	s.Status = domain.SessionStatus(status)
-	s.Phase = domain.SessionPhase(phase)
+	s.Status = domain.SeminarSessionStatus(status)
+	s.Phase = domain.SeminarSessionPhase(phase)
 	return &s, nil
 }
 
@@ -412,14 +412,14 @@ type turnScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanTurn(row turnScanner) (*domain.Turn, error) {
-	var t domain.Turn
+func scanTurn(row turnScanner) (*domain.SeminarTurn, error) {
+	var t domain.SeminarTurn
 	var phase string
 	var rawFlags []byte
 	if err := row.Scan(&t.ID, &t.SessionID, &phase, &t.Speaker, &t.Text, &rawFlags, &t.CreatedAt); err != nil {
 		return nil, fmt.Errorf("scan turn: %w", err)
 	}
-	t.Phase = domain.SessionPhase(phase)
+	t.Phase = domain.SeminarSessionPhase(phase)
 	if rawFlags != nil {
 		if err := json.Unmarshal(rawFlags, &t.Flags); err != nil {
 			return nil, fmt.Errorf("unmarshal turn flags: %w", err)

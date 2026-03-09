@@ -14,27 +14,27 @@ import (
 )
 
 // SessionHandler exposes session-related routes.
-type SessionHandler struct {
-	svc *service.SessionService
+type SeminarSessionHandler struct {
+	svc *service.SeminarSessionService
 }
 
 // NewSessionHandler constructs a SessionHandler backed by the given service.
-func NewSessionHandler(svc *service.SessionService) *SessionHandler {
-	return &SessionHandler{svc: svc}
+func NewSeminarSessionHandler(svc *service.SeminarSessionService) *SeminarSessionHandler {
+	return &SeminarSessionHandler{svc: svc}
 }
 
 // ── Route registration ─────────────────────────────────────────────────────────
 
 // RegisterUnderSeminar wires the session-creation route onto the seminars group.
 // Expected prefix: /v1/seminars/:id
-func (h *SessionHandler) RegisterUnderSeminar(rg *gin.RouterGroup) {
+func (h *SeminarSessionHandler) RegisterUnderSeminar(rg *gin.RouterGroup) {
 	rg.GET("/:id/sessions", h.List)
 	rg.POST("/:id/sessions", h.Create)
 }
 
 // Register wires top-level session routes onto the provided router group.
 // Expected prefix: /v1/sessions
-func (h *SessionHandler) Register(rg *gin.RouterGroup) {
+func (h *SeminarSessionHandler) Register(rg *gin.RouterGroup) {
 	rg.GET("/:id", h.Get)
 	rg.DELETE("/:id", h.Delete)
 	rg.POST("/:id/abandon", h.Abandon)
@@ -50,10 +50,10 @@ func (h *SessionHandler) Register(rg *gin.RouterGroup) {
 //	@Accept   json
 //	@Produce  json
 //	@Param    id    path      string                          true  "Seminar ID"
-//	@Param    body  body      apphttp.CreateSessionRequest    true  "session fields"
-//	@Success  201   {object}  apphttp.SessionResponse
+//	@Param    body  body      apphttp.CreateSeminarSessionRequest    true  "session fields"
+//	@Success  201   {object}  apphttp.SeminarSessionResponse
 //	@Router   /v1/seminars/{id}/sessions [post]
-func (h *SessionHandler) Create(c *gin.Context) {
+func (h *SeminarSessionHandler) Create(c *gin.Context) {
 	logger := observability.FromGinCtx(c)
 	ownerSub, err := auth.MustOwnerSub(c)
 	if err != nil {
@@ -63,7 +63,7 @@ func (h *SessionHandler) Create(c *gin.Context) {
 	seminarID := c.Param("id")
 	logger.Debug("creating session", slog.String("seminar_id", seminarID))
 
-	var req apphttp.CreateSessionRequest
+	var req apphttp.CreateSeminarSessionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Debug("invalid request body", slog.String("error", err.Error()))
 		apphttp.FailDetails(c, http.StatusBadRequest, "invalid_request",
@@ -72,19 +72,19 @@ func (h *SessionHandler) Create(c *gin.Context) {
 		return
 	}
 
-	sess, err := h.svc.Create(c.Request.Context(), ownerSub, seminarID, service.CreateSessionParams{
+	sess, err := h.svc.Create(c.Request.Context(), ownerSub, seminarID, service.CreateSeminarSessionParams{
 		SectionLabel: req.SectionLabel,
 		Mode:         req.Mode,
 		ExcerptText:  req.ExcerptText,
 		ReconMinutes: req.ReconMinutes,
 	})
 	if err != nil {
-		handleSessionServiceError(c, err)
+		handleSeminarSessionServiceError(c, err)
 		return
 	}
 
 	logger.Debug("session created successfully", slog.String("session_id", sess.ID))
-	c.JSON(http.StatusCreated, toSessionResponse(*sess))
+	c.JSON(http.StatusCreated, toSeminarSessionResponse(*sess))
 }
 
 // List godoc
@@ -93,9 +93,9 @@ func (h *SessionHandler) Create(c *gin.Context) {
 //	@Tags     sessions
 //	@Produce  json
 //	@Param    id   path      string  true  "Seminar ID"
-//	@Success  200  {array}   apphttp.SessionResponse
+//	@Success  200  {array}   apphttp.SeminarSessionResponse
 //	@Router   /v1/seminars/{id}/sessions [get]
-func (h *SessionHandler) List(c *gin.Context) {
+func (h *SeminarSessionHandler) List(c *gin.Context) {
 	ownerSub, err := auth.MustOwnerSub(c)
 	if err != nil {
 		return
@@ -103,13 +103,13 @@ func (h *SessionHandler) List(c *gin.Context) {
 
 	sessions, err := h.svc.List(c.Request.Context(), c.Param("id"), ownerSub)
 	if err != nil {
-		handleSessionServiceError(c, err)
+		handleSeminarSessionServiceError(c, err)
 		return
 	}
 
-	responses := make([]apphttp.SessionResponse, len(sessions))
+	responses := make([]apphttp.SeminarSessionResponse, len(sessions))
 	for i, s := range sessions {
-		responses[i] = toSessionResponse(s)
+		responses[i] = toSeminarSessionResponse(s)
 	}
 	c.JSON(http.StatusOK, responses)
 }
@@ -121,7 +121,7 @@ func (h *SessionHandler) List(c *gin.Context) {
 //	@Param    id   path      string  true  "Session ID"
 //	@Success  204
 //	@Router   /v1/sessions/{id} [delete]
-func (h *SessionHandler) Delete(c *gin.Context) {
+func (h *SeminarSessionHandler) Delete(c *gin.Context) {
 	ownerSub, err := auth.MustOwnerSub(c)
 	if err != nil {
 		return
@@ -129,7 +129,7 @@ func (h *SessionHandler) Delete(c *gin.Context) {
 
 	err = h.svc.Delete(c.Request.Context(), c.Param("id"), ownerSub)
 	if err != nil {
-		handleSessionServiceError(c, err)
+		handleSeminarSessionServiceError(c, err)
 		return
 	}
 
@@ -142,9 +142,9 @@ func (h *SessionHandler) Delete(c *gin.Context) {
 //	@Tags     sessions
 //	@Produce  json
 //	@Param    id   path      string  true  "Session ID"
-//	@Success  200  {object}  apphttp.SessionDetailResponse
+//	@Success  200  {object}  apphttp.SeminarSessionDetailResponse
 //	@Router   /v1/sessions/{id} [get]
-func (h *SessionHandler) Get(c *gin.Context) {
+func (h *SeminarSessionHandler) Get(c *gin.Context) {
 	logger := observability.FromGinCtx(c)
 	ownerSub, err := auth.MustOwnerSub(c)
 	if err != nil {
@@ -156,11 +156,11 @@ func (h *SessionHandler) Get(c *gin.Context) {
 
 	detail, err := h.svc.Get(c.Request.Context(), sessionID, ownerSub)
 	if err != nil {
-		handleSessionServiceError(c, err)
+		handleSeminarSessionServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, toSessionDetailResponse(detail))
+	c.JSON(http.StatusOK, toSeminarSessionDetailResponse(detail))
 }
 
 // Abandon godoc
@@ -169,9 +169,9 @@ func (h *SessionHandler) Get(c *gin.Context) {
 //	@Tags     sessions
 //	@Produce  json
 //	@Param    id   path      string  true  "Session ID"
-//	@Success  200  {object}  apphttp.SessionResponse
+//	@Success  200  {object}  apphttp.SeminarSessionResponse
 //	@Router   /v1/sessions/{id}/abandon [post]
-func (h *SessionHandler) Abandon(c *gin.Context) {
+func (h *SeminarSessionHandler) Abandon(c *gin.Context) {
 	ownerSub, err := auth.MustOwnerSub(c)
 	if err != nil {
 		return
@@ -179,11 +179,11 @@ func (h *SessionHandler) Abandon(c *gin.Context) {
 
 	sess, err := h.svc.Abandon(c.Request.Context(), c.Param("id"), ownerSub)
 	if err != nil {
-		handleSessionServiceError(c, err)
+		handleSeminarSessionServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, toSessionResponse(*sess))
+	c.JSON(http.StatusOK, toSeminarSessionResponse(*sess))
 }
 
 // SubmitResidue godoc
@@ -194,9 +194,9 @@ func (h *SessionHandler) Abandon(c *gin.Context) {
 //	@Produce  json
 //	@Param    id    path      string                        true  "Session ID"
 //	@Param    body  body      apphttp.SubmitResidueRequest  true  "residue text"
-//	@Success  200   {object}  apphttp.SessionResponse
+//	@Success  200   {object}  apphttp.SeminarSessionResponse
 //	@Router   /v1/sessions/{id}/residue [post]
-func (h *SessionHandler) SubmitResidue(c *gin.Context) {
+func (h *SeminarSessionHandler) SubmitResidue(c *gin.Context) {
 	ownerSub, err := auth.MustOwnerSub(c)
 	if err != nil {
 		return
@@ -210,18 +210,18 @@ func (h *SessionHandler) SubmitResidue(c *gin.Context) {
 
 	sess, err := h.svc.SubmitResidue(c.Request.Context(), c.Param("id"), ownerSub, req.ResidueText)
 	if err != nil {
-		handleSessionServiceError(c, err)
+		handleSeminarSessionServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, toSessionResponse(*sess))
+	c.JSON(http.StatusOK, toSeminarSessionResponse(*sess))
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
-// toSessionResponse converts a domain.Session to its HTTP response shape.
-func toSessionResponse(s domain.Session) apphttp.SessionResponse {
-	return apphttp.SessionResponse{
+// toSessionResponse converts a domain.SeminarSession to its HTTP response shape.
+func toSeminarSessionResponse(s domain.SeminarSession) apphttp.SeminarSessionResponse {
+	return apphttp.SeminarSessionResponse{
 		ID:             s.ID,
 		SeminarID:      s.SeminarID,
 		SectionLabel:   s.SectionLabel,
@@ -239,9 +239,9 @@ func toSessionResponse(s domain.Session) apphttp.SessionResponse {
 	}
 }
 
-// toTurnResponse converts a domain.Turn to its HTTP response shape.
-func toTurnResponse(t domain.Turn) apphttp.TurnResponse {
-	return apphttp.TurnResponse{
+// toTurnResponse converts a domain.SeminarTurn to its HTTP response shape.
+func toSeminarTurnResponse(t domain.SeminarTurn) apphttp.SeminarTurnResponse {
+	return apphttp.SeminarTurnResponse{
 		ID:        t.ID,
 		SessionID: t.SessionID,
 		Phase:     t.Phase,
@@ -253,21 +253,21 @@ func toTurnResponse(t domain.Turn) apphttp.TurnResponse {
 }
 
 // toSessionDetailResponse converts a SessionDetail to its HTTP response shape.
-func toSessionDetailResponse(d *service.SessionDetail) apphttp.SessionDetailResponse {
-	turns := make([]apphttp.TurnResponse, len(d.Turns))
+func toSeminarSessionDetailResponse(d *service.SeminarSessionDetail) apphttp.SeminarSessionDetailResponse {
+	turns := make([]apphttp.SeminarTurnResponse, len(d.Turns))
 	for i, t := range d.Turns {
-		turns[i] = toTurnResponse(t)
+		turns[i] = toSeminarTurnResponse(t)
 	}
-	return apphttp.SessionDetailResponse{
-		SessionResponse: toSessionResponse(*d.Session),
-		Turns:           turns,
+	return apphttp.SeminarSessionDetailResponse{
+		SeminarSessionResponse: toSeminarSessionResponse(*d.Session),
+		Turns:                  turns,
 	}
 }
 
 // handleSessionServiceError extends handleServiceError with session-specific
 // typed errors.
-func handleSessionServiceError(c *gin.Context, err error) {
-	var terminal *service.ErrSessionTerminalError
+func handleSeminarSessionServiceError(c *gin.Context, err error) {
+	var terminal *service.ErrSeminarSessionTerminalError
 	if errors.As(err, &terminal) {
 		apphttp.FailDetails(c, http.StatusConflict, "session_terminal",
 			"This session has ended and no longer accepts new turns",
