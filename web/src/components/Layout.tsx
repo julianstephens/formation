@@ -30,8 +30,8 @@ import React, { useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 
 const ROUTES = {
-  Seminars: "/seminars",
-  Tutorials: "/tutorials",
+  seminars: "/seminars",
+  tutorials: "/tutorials",
 };
 
 /**
@@ -115,7 +115,7 @@ const BaseLayout = ({ children }: React.PropsWithChildren) => {
     try {
       const s = await createSessionMutation.mutateAsync({ seminarId, input });
       closeSessionDialog();
-      navigate(`/sessions/${s.id}`);
+      navigate(`/seminar-sessions/${s.id}`);
     } finally {
       setCreatingSession(false);
     }
@@ -159,6 +159,7 @@ const BaseLayout = ({ children }: React.PropsWithChildren) => {
                 href={v}
                 fontSize="md"
                 color="white"
+                textTransform="capitalize"
                 _hover={{ color: "#f59e0b" }}
                 _focus={{ outline: "none", border: "none" }}
                 _active={{ outline: "none", border: "none" }}

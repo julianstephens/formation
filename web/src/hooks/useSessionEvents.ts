@@ -89,7 +89,7 @@ export function useSessionEvents(
     async function connect() {
       try {
         const token = await getToken();
-        const res = await fetch(`${BASE_URL}/sessions/${sessionId}/events`, {
+        const res = await fetch(`${BASE_URL}/seminar-sessions/${sessionId}/events`, {
           headers: { Authorization: `Bearer ${token}` },
           signal: controller.signal,
         });

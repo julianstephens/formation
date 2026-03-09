@@ -3,7 +3,7 @@
  * Markdown.  The URL shape determines the resource type:
  *
  *   /seminars/:id/export           →  seminar export
- *   /sessions/:id/export           →  session export
+ *   /seminar-sessions/:id/export           →  session export
  *   /tutorials/:id/export          →  tutorial export
  *   /tutorial-sessions/:id/export  →  tutorial session export
  */
@@ -98,7 +98,7 @@ export default function Export({ resourceType }: ExportPageProps) {
       case "seminar":
         return `/seminars/${id}`;
       case "session":
-        return `/sessions/${id}/review`;
+        return `/seminar-sessions/${id}/review`;
       case "tutorial":
         return `/tutorials/${id}`;
       case "tutorial_session":

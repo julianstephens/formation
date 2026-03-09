@@ -35,7 +35,7 @@ const Dashboard = () => {
 
   const handleSessionClick = (session: DashboardSession) => {
     if (session.type === "seminar") {
-      navigate(`/sessions/${session.id}`);
+      navigate(`/seminar-sessions/${session.id}`);
     } else {
       navigate(`/tutorial-sessions/${session.id}`);
     }

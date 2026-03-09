@@ -89,6 +89,7 @@ export const SeminarSessionHeader = ({
       ),
     );
   })();
+  // console.log("Rendering SeminarSessionHeader with phaseInfo:", phaseInfo, "calculated phaseProgress:", phaseProgress);
 
   return (
     <>

@@ -200,8 +200,8 @@ export default function SeminarDetail() {
                         cursor="pointer"
                         onClick={() =>
                           s.status === "in_progress"
-                            ? navigate(`/sessions/${s.id}`)
-                            : navigate(`/sessions/${s.id}/review`)
+                            ? navigate(`/seminar-sessions/${s.id}`)
+                            : navigate(`/seminar-sessions/${s.id}/review`)
                         }
                       >
                         <Text fontWeight="medium" wordBreak="break-word">
@@ -217,7 +217,7 @@ export default function SeminarDetail() {
                         <Badge colorScheme={statusColor[s.status] ?? "gray"}>
                           {s.status}
                         </Badge>
-                        <ExportButton to={`/sessions/${s.id}/export`} />
+                        <ExportButton to={`/seminar-sessions/${s.id}/export`} />
                         <DeleteButton
                           onClick={(e) => {
                             e.stopPropagation();

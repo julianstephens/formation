@@ -100,7 +100,7 @@ const SeminarSessionRunner = () => {
   // Redirect to review if session is already completed/abandoned.
   useEffect(() => {
     if (session && session.status !== "in_progress") {
-      navigate(`/sessions/${id}/review`, { replace: true });
+      navigate(`/seminar-sessions/${id}/review`, { replace: true });
     }
   }, [session, id, navigate]);
 
@@ -168,7 +168,7 @@ const SeminarSessionRunner = () => {
 
     onSessionCompleted: () => {
       if (id) unsubscribe(id); // Close SSE connection when session completes
-      navigate(`/sessions/${id}/review`, { replace: true });
+      navigate(`/seminar-sessions/${id}/review`, { replace: true });
     },
 
     onError: (payload) => {
@@ -215,7 +215,7 @@ const SeminarSessionRunner = () => {
     setError(null);
     try {
       await submitResidueMutation.mutateAsync({ sessionId: id, residueText: text });
-      navigate(`/sessions/${id}/review`, { replace: true });
+      navigate(`/seminar-sessions/${id}/review`, { replace: true });
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : String(e));
     } finally {
@@ -229,7 +229,7 @@ const SeminarSessionRunner = () => {
     setError(null);
     try {
       await submitResidueMutation.mutateAsync({ sessionId: id, residueText: notes });
-      navigate(`/sessions/${id}/review`, { replace: true });
+      navigate(`/seminar-sessions/${id}/review`, { replace: true });
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : String(e));
     }
@@ -240,7 +240,7 @@ const SeminarSessionRunner = () => {
     try {
       await abandonSessionMutation.mutateAsync(id);
       unsubscribe(id); // Close SSE connection when abandoning
-      navigate(`/sessions/${id}/review`, { replace: true });
+      navigate(`/seminar-sessions/${id}/review`, { replace: true });
     } catch (e) {
       setError(String(e));
     }
@@ -277,7 +277,7 @@ const SeminarSessionRunner = () => {
             isDone,
           }}
           toBack={`/seminars/${session.seminar_id}`}
-          toExport={`/sessions/${id}/export`}
+          toExport={`/seminar-sessions/${id}/export`}
         />
         {/* E. Error banners */}
         {error && (

@@ -77,7 +77,7 @@ export default function SessionReview() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => navigate(`/sessions/${id}/export`)}
+            onClick={() => navigate(`/seminar-sessions/${id}/export`)}
           >
             Export
           </Button>

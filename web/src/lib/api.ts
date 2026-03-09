@@ -114,31 +114,31 @@ export function createApiClient(getToken: () => Promise<string>) {
       post<SeminarSession>(`/seminars/${seminarId}/sessions`, input),
 
     getSession: (sessionId: string) =>
-      get<SeminarSessionDetail>(`/sessions/${sessionId}`),
+      get<SeminarSessionDetail>(`/seminar-sessions/${sessionId}`),
 
     listSessions: (seminarId: string) =>
       get<SeminarSession[]>(`/seminars/${seminarId}/sessions`),
 
     abandonSession: (sessionId: string) =>
-      post<SeminarSession>(`/sessions/${sessionId}/abandon`),
+      post<SeminarSession>(`/seminar-sessions/${sessionId}/abandon`),
 
-    deleteSession: (sessionId: string) => del<void>(`/sessions/${sessionId}`),
+    deleteSession: (sessionId: string) => del<void>(`/seminar-sessions/${sessionId}`),
 
     submitResidue: (sessionId: string, residueText: string) =>
-      post<SeminarSession>(`/sessions/${sessionId}/residue`, {
+      post<SeminarSession>(`/seminar-sessions/${sessionId}/residue`, {
         residue_text: residueText,
       }),
 
     // ── Turns ─────────────────────────────────────────────────────────────────
     submitTurn: (sessionId: string, text: string) =>
-      post<Turn>(`/sessions/${sessionId}/turns`, { text }),
+      post<Turn>(`/seminar-sessions/${sessionId}/turns`, { text }),
 
     // ── Exports ───────────────────────────────────────────────────────────────
     exportSeminar: (seminarId: string, format: "json" | "md" = "json") =>
       get<{ url: string; }>(`/seminars/${seminarId}/export?format=${format}`),
 
     exportSession: (sessionId: string, format: "json" | "md" = "json") =>
-      get<{ url: string; }>(`/sessions/${sessionId}/export?format=${format}`),
+      get<{ url: string; }>(`/seminar-sessions/${sessionId}/export?format=${format}`),
 
     exportTutorial: (tutorialId: string, format: "json" | "md" = "json") =>
       get<{ url: string; }>(`/tutorials/${tutorialId}/export?format=${format}`),
