@@ -1,7 +1,7 @@
 import { CreateTutorialDialog } from "@/components/dialogs/CreateTutorialDialog";
 import { useCreateTutorialDialog } from "@/contexts/CreateTutorialDialogContext";
-import { useApi } from "@/lib/ApiContext";
-import type { CreateTutorialInput, Tutorial } from "@/lib/types";
+import { useCreateTutorial, useListTutorials } from "@/lib/queries";
+import type { CreateTutorialInput } from "@/lib/types";
 import {
   Badge,
   Box,
@@ -13,7 +13,7 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const difficultyColor: Record<string, string> = {
@@ -23,7 +23,6 @@ const difficultyColor: Record<string, string> = {
 };
 
 export default function TutorialList() {
-  const api = useApi();
   const navigate = useNavigate();
   const {
     isOpen,
@@ -36,26 +35,9 @@ export default function TutorialList() {
     setDifficulty,
   } = useCreateTutorialDialog();
 
-  const [tutorials, setTutorials] = useState<Tutorial[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: tutorials = [], isLoading, error: listError } = useListTutorials();
+  const createTutorialMutation = useCreateTutorial();
   const [error, setError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setTutorials(await api.listTutorials());
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [api]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   const handleCreate = async () => {
     const title = titleRef.current?.value.trim() ?? "";
@@ -68,10 +50,9 @@ export default function TutorialList() {
       description: descriptionRef.current?.value.trim(),
       difficulty,
     };
-    setCreating(true);
+    setError(null);
     try {
-      const created = await api.createTutorial(input);
-      setTutorials((prev) => [created, ...prev]);
+      await createTutorialMutation.mutateAsync(input);
       closeDialog();
       // Clear form fields
       if (titleRef.current) titleRef.current.value = "";
@@ -79,11 +60,11 @@ export default function TutorialList() {
       if (descriptionRef.current) descriptionRef.current.value = "";
       setDifficulty("beginner");
     } catch (e) {
-      setError(String(e));
-    } finally {
-      setCreating(false);
+      setError(e instanceof Error ? e.message : String(e));
     }
   };
+
+  const creating = createTutorialMutation.isPending;
 
   return (
     <Box
@@ -120,13 +101,13 @@ export default function TutorialList() {
         handleCreate={handleCreate}
       />
 
-      {error && (
+      {(error ?? listError) && (
         <Text color="red.500" mb={4}>
-          {error}
+          {error ?? (listError instanceof Error ? listError.message : String(listError))}
         </Text>
       )}
 
-      {loading ? (
+      {isLoading ? (
         <HStack justify="center" mt={16}>
           <Spinner size="xl" />
         </HStack>

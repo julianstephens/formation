@@ -1,4 +1,6 @@
+import { ChatActions } from "@/components/chat/ChatActions";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { TurnList } from "@/components/chat/TurnList";
 import { SeminarSessionHeader } from "@/components/seminars/SeminarSessionHeader";
 import {
   useSessionEventsSubscription,
@@ -10,11 +12,15 @@ import type {
   TurnAddedPayload,
 } from "@/hooks/useSessionEvents";
 import { ApiRequestError } from "@/lib/api";
-import { useApi } from "@/lib/ApiContext";
+import {
+  useAbandonSession,
+  useSession,
+  useSubmitResidue,
+  useSubmitTurn,
+} from "@/lib/queries";
 import type {
   SeminarSessionDetail,
-  SeminarSessionPhase,
-  Turn,
+  Turn
 } from "@/lib/types";
 import {
   Box,
@@ -25,26 +31,21 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-
-const PHASE_LABELS: Record<SeminarSessionPhase, string> = {
-  reconstruction: "Reconstruction",
-  opposition: "Opposition",
-  reversal: "Reversal",
-  residue_required: "Residue Required",
-  done: "Done",
-};
 
 const SeminarSessionRunner = () => {
   const { id } = useParams<{ id: string; }>();
-  const api = useApi();
   const navigate = useNavigate();
   const unsubscribe = useSessionEventsUnsubscribe();
 
+  const { data: sessionData, isLoading, error: loadError, refetch } = useSession(id);
+  const submitTurnMutation = useSubmitTurn();
+  const submitResidueMutation = useSubmitResidue();
+  const abandonSessionMutation = useAbandonSession();
+
   const [session, setSession] = useState<SeminarSessionDetail | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   /** Seconds remaining in the current phase, driven by SSE timer_tick. */
@@ -54,28 +55,42 @@ const SeminarSessionRunner = () => {
   /** Set when the backend returns missing_locator (400) on a turn submit. */
   const [locatorError, setLocatorError] = useState<string | null>(null);
 
-  const turnRef = useRef<HTMLTextAreaElement>(null);
-  const residueRef = useRef<HTMLTextAreaElement>(null);
+  const [showCompleteForm, setShowCompleteForm] = useState(false);
+
   const bottomRef = useRef<HTMLDivElement>(null);
+  const notesRef = useRef<HTMLTextAreaElement | null>(null);
+  /** Mirror of session.phase kept in a ref so SSE handlers can read it without
+   * being recreated on every render. Used to detect phase drift. */
+  const sessionPhaseRef = useRef<string | null>(null);
+  const initializedRef = useRef(false);
 
-  const load = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const detail = await api.getSession(id);
-      setSession(detail);
-      setTurns(detail.turns ?? []);
-    } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [id, api]);
+  // Streaming agent responses — keyed by turn_id (seminar streaming, future).
+  const [streamingTurns] = useState<Map<string, string>>(new Map());
 
+  // Initialize local state from query data on first load.
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (sessionData && !initializedRef.current) {
+      initializedRef.current = true;
+      setSession(sessionData);
+      setTurns(sessionData.turns ?? []);
+      if (sessionData.phase !== "done" && sessionData.phase_ends_at) {
+        setSecondsRemaining(
+          Math.max(
+            0,
+            Math.ceil(
+              (new Date(sessionData.phase_ends_at).getTime() - Date.now()) /
+              1000,
+            ),
+          ),
+        );
+      }
+    }
+  }, [sessionData]);
+
+  // Keep sessionPhaseRef in sync so SSE handlers can read the current phase.
+  useEffect(() => {
+    if (session) sessionPhaseRef.current = session.phase;
+  }, [session]);
 
   // Auto-scroll to bottom when turns update.
   useEffect(() => {
@@ -94,27 +109,49 @@ const SeminarSessionRunner = () => {
   useSessionEventsSubscription(id, {
     onTimerTick: (payload: TimerTickPayload) => {
       setSecondsRemaining(Math.ceil(payload.seconds_remaining));
+      // Safety net: if the tick's phase doesn't match local state the client
+      // missed a phase_changed event (e.g. fired during a reconnect window).
+      // Re-fetch the session from the API to get fully-fresh state.
+      if (sessionPhaseRef.current !== null && sessionPhaseRef.current !== payload.phase) {
+        void refetch().then(({ data: fresh }) => {
+          if (fresh) {
+            setSession(fresh);
+            setTurns(fresh.turns ?? []);
+            if (fresh.phase !== "done" && fresh.phase_ends_at) {
+              setSecondsRemaining(
+                Math.max(
+                  0,
+                  Math.ceil(
+                    (new Date(fresh.phase_ends_at).getTime() - Date.now()) /
+                    1000,
+                  ),
+                ),
+              );
+            }
+          }
+        });
+      }
     },
 
     onPhaseChanged: (payload: PhaseChangedPayload) => {
+      // Update the ref synchronously so any timer_tick that arrives before the
+      // next render doesn't misdetect a phase mismatch and suppress refetch().
+      sessionPhaseRef.current = payload.phase;
       // Lock input briefly while we refresh the session state.
       setPhaseLocked(true);
-      setSecondsRemaining(
-        payload.phase_ends_at
-          ? Math.max(
-            0,
-            Math.ceil(
-              (new Date(payload.phase_ends_at).getTime() - Date.now()) / 1000,
-            ),
-          )
-          : null,
-      );
+      // Clear and wait for the next authoritative timer_tick instead of
+      // computing from phase_ends_at — SSE delivery latency makes the
+      // client-side calculation unreliable and causes progress jumps.
+      setSecondsRemaining(null);
       setSession((prev) =>
         prev
           ? {
             ...prev,
             phase: payload.phase,
             phase_ends_at: payload.phase_ends_at ?? prev.phase_ends_at,
+            // Use the server-recorded timestamp to avoid client clock skew
+            // skewing totalDurationSeconds in the progress bar calculation.
+            phase_started_at: payload.phase_started_at ?? new Date().toISOString(),
           }
           : prev,
       );
@@ -143,22 +180,19 @@ const SeminarSessionRunner = () => {
     },
   });
 
-  const handleSubmitTurn = async () => {
-    if (!id || !turnRef.current) return;
-    const text = turnRef.current.value.trim();
-    if (!text) return;
+  const handleSubmitTurn = async (text: string) => {
+    if (!id || !text) return;
     setSubmitting(true);
     setError(null);
     setLocatorError(null);
     try {
-      const agentTurn = await api.submitTurn(id, text);
-      // SSE turn_added will append both user and agent turns; clear the field.
-      // Still do a local dedup-append as a fallback for clients without SSE.
+      const agentTurn = await submitTurnMutation.mutateAsync({ sessionId: id, text });
+      // SSE turn_added will append both user and agent turns.
+      // Also do a local dedup-append as a fallback for clients without SSE.
       setTurns((prev) => {
         const alreadyHas = prev.some((t) => t.id === agentTurn.id);
         return alreadyHas ? prev : [...prev, agentTurn];
       });
-      turnRef.current.value = "";
     } catch (e) {
       if (e instanceof ApiRequestError && e.message === "missing_locator") {
         const detail = e.detail as { message?: string; } | undefined;
@@ -175,14 +209,12 @@ const SeminarSessionRunner = () => {
     }
   };
 
-  const handleSubmitResidue = async () => {
-    if (!id || !residueRef.current) return;
-    const text = residueRef.current.value.trim();
-    if (!text) return;
+  const handleSubmitResidue = async (text: string) => {
+    if (!id || !text) return;
     setSubmitting(true);
     setError(null);
     try {
-      await api.submitResidue(id, text);
+      await submitResidueMutation.mutateAsync({ sessionId: id, residueText: text });
       navigate(`/sessions/${id}/review`, { replace: true });
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : String(e));
@@ -191,10 +223,22 @@ const SeminarSessionRunner = () => {
     }
   };
 
+  const handleComplete = async () => {
+    if (!id) return;
+    const notes = notesRef.current?.value ?? "";
+    setError(null);
+    try {
+      await submitResidueMutation.mutateAsync({ sessionId: id, residueText: notes });
+      navigate(`/sessions/${id}/review`, { replace: true });
+    } catch (e) {
+      setError(e instanceof ApiRequestError ? e.message : String(e));
+    }
+  };
+
   const handleAbandon = async () => {
     if (!id || !window.confirm("Abandon this session?")) return;
     try {
-      await api.abandonSession(id);
+      await abandonSessionMutation.mutateAsync(id);
       unsubscribe(id); // Close SSE connection when abandoning
       navigate(`/sessions/${id}/review`, { replace: true });
     } catch (e) {
@@ -202,7 +246,7 @@ const SeminarSessionRunner = () => {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <HStack justify="center" mt={20}>
         <Spinner size="xl" />
@@ -211,24 +255,24 @@ const SeminarSessionRunner = () => {
   }
 
   if (!session) {
-    return <Text color="red.500">{error ?? "Session not found."}</Text>;
+    return (
+      <Text color="red.500">
+        {loadError instanceof Error ? loadError.message : "Session not found."}
+      </Text>
+    );
   }
 
   const phase = session.phase;
   const isResiduePhase = phase === "residue_required";
   const isDone = phase === "done";
-  const canSubmitTurns = !isResiduePhase && !isDone;
-  // Derive thinking state from turns array so it persists across navigation
-  const agentThinking =
-    turns.length > 0 && turns[turns.length - 1].speaker === "user";
 
   return (
     <Flex w="full">
-      <VStack h="full" flexGrow={1}>
+      <VStack h="full" pb={6} flexGrow={1}>
         <SeminarSessionHeader
           detail={session}
           phaseInfo={{
-            secondsRemaining: secondsRemaining ?? 0,
+            secondsRemaining: secondsRemaining,
             isResiduePhase,
             isDone,
           }}
@@ -239,6 +283,11 @@ const SeminarSessionRunner = () => {
         {error && (
           <Text color="red.500" mb={4}>
             {error}
+          </Text>
+        )}
+        {locatorError && (
+          <Text color="orange.400" fontSize="sm" mb={4}>
+            ⚠ {locatorError}
           </Text>
         )}
         {/* Abandoned banner */}
@@ -260,9 +309,36 @@ const SeminarSessionRunner = () => {
           <Heading size="sm" mb={3}>
             Conversation
           </Heading>
-          {/* // TODO: implement seminar turn list */}
+          <TurnList
+            turns={turns}
+            streamingTurns={streamingTurns}
+            bottomRef={bottomRef}
+          />
         </Box>
-        <ChatInput />
+        <ChatInput
+          onSend={(msg) =>
+            isResiduePhase
+              ? void handleSubmitResidue(msg)
+              : void handleSubmitTurn(msg)
+          }
+          disabled={isDone || phaseLocked || submitting}
+          placeholder={
+            isResiduePhase
+              ? "Write your residue…"
+              : "Your message…"
+          }
+        />
+        <ChatActions
+          onComplete={handleComplete}
+          onAbandon={handleAbandon}
+          completing={submitResidueMutation.isPending}
+          completeDisabled={isDone || phaseLocked || submitting}
+          abandoning={abandonSessionMutation.isPending}
+          abandonDisabled={isDone || phaseLocked || submitting}
+          showCompleteForm={showCompleteForm}
+          onToggleCompleteForm={() => setShowCompleteForm((v) => !v)}
+          notesRef={notesRef}
+        />
       </VStack>
     </Flex>
   );

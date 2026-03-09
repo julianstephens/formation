@@ -10,7 +10,7 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { FaTrash } from "react-icons/fa";
+import { LuTrash } from "react-icons/lu";
 
 const patternCodeColor: Record<string, string> = {
   TEXT_DRIFT: "blue",
@@ -97,7 +97,7 @@ export const ProblemSetPanel = ({
                   onClick={() => onDelete(problemSet)}
                 >
                   <Icon>
-                    <FaTrash />
+                    <LuTrash />
                   </Icon>
                 </IconButton>
               )}

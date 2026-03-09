@@ -14,8 +14,7 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { FaTrash } from "react-icons/fa";
-import { LuPlus } from "react-icons/lu";
+import { LuPlus, LuTrash } from "react-icons/lu";
 
 const artifactKindColor: Record<string, string> = {
   summary: "blue",
@@ -89,7 +88,7 @@ const ArtifactList = ({
                 onClick={() => onDelete(a)}
               >
                 <Icon>
-                  <FaTrash />
+                  <LuTrash />
                 </Icon>
               </IconButton>
             )}

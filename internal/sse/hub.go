@@ -50,9 +50,10 @@ type Event struct {
 
 // PhaseChangedPayload is carried by phase_changed events.
 type PhaseChangedPayload struct {
-	SessionID   string    `json:"session_id"`
-	Phase       string    `json:"phase"`
-	PhaseEndsAt time.Time `json:"phase_ends_at,omitempty"`
+	SessionID      string    `json:"session_id"`
+	Phase          string    `json:"phase"`
+	PhaseEndsAt    time.Time `json:"phase_ends_at,omitempty"`
+	PhaseStartedAt time.Time `json:"phase_started_at,omitempty"`
 }
 
 // TimerTickPayload is carried by timer_tick events.
@@ -202,9 +203,10 @@ func (h *Hub) Publish(sessionID string, event Event) {
 // updated session returned by the scheduler's AdvancePhase call.
 func (h *Hub) PublishPhaseChanged(sess *domain.Session) {
 	payload := PhaseChangedPayload{
-		SessionID:   sess.ID,
-		Phase:       string(sess.Phase),
-		PhaseEndsAt: sess.PhaseEndsAt,
+		SessionID:      sess.ID,
+		Phase:          string(sess.Phase),
+		PhaseEndsAt:    sess.PhaseEndsAt,
+		PhaseStartedAt: sess.PhaseStartedAt,
 	}
 	h.Publish(sess.ID, Event{Type: EventPhaseChanged, Data: payload})
 

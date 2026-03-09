@@ -58,80 +58,100 @@ export function SessionEventsProvider({
     }
 
     const controller = new AbortController();
-    const cancelled = false;
 
+    // Single-attempt connection. Returns normally when the stream closes.
+    // Throws AbortError when the controller is aborted (explicit unsubscribe).
     async function connect() {
-      try {
-        const token = await getToken();
-        const res = await fetch(`${BASE_URL}/sessions/${sessionId}/events`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: controller.signal,
-        });
+      const token = await getToken();
+      const res = await fetch(`${BASE_URL}/sessions/${sessionId}/events`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      });
 
-        if (!res.ok || !res.body) {
-          handlers.onConnectionError?.(
-            new Error(`SSE connect failed: ${res.status} ${res.statusText}`),
-          );
-          return;
+      if (!res.ok || !res.body) {
+        const sub = subscriptionsRef.current.get(sessionId);
+        (sub?.handlers ?? handlers).onConnectionError?.(
+          new Error(`SSE connect failed: ${res.status} ${res.statusText}`),
+        );
+        // Permanent client errors (4xx except 429 Too Many Requests) should
+        // not be retried – abort the controller so connectLoop exits.
+        if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+          controller.abort();
         }
+        return;
+      }
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = "";
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
 
-        while (!cancelled) {
-          const { done, value } = await reader.read();
-          if (done) break;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-          buf += decoder.decode(value, { stream: true });
+        buf += decoder.decode(value, { stream: true });
 
-          // SSE messages are delimited by blank lines ("event: …\ndata: …\n\n").
-          // Split on double-newline; retain the trailing incomplete chunk.
-          const parts = buf.split("\n\n");
-          buf = parts.pop() ?? "";
+        // SSE messages are delimited by blank lines ("event: …\ndata: …\n\n").
+        // Split on double-newline; retain the trailing incomplete chunk.
+        const parts = buf.split("\n\n");
+        buf = parts.pop() ?? "";
 
-          for (const part of parts) {
-            let eventType = "message";
-            const dataLines: string[] = [];
+        for (const part of parts) {
+          let eventType = "message";
+          const dataLines: string[] = [];
 
-            for (const line of part.split("\n")) {
-              if (line.startsWith("event:")) {
-                eventType = line.slice(6).trim();
-              } else if (line.startsWith("data:")) {
-                dataLines.push(line.slice(5).trim());
-              }
-              // Ignore ": heartbeat" comments and blank lines.
+          for (const line of part.split("\n")) {
+            if (line.startsWith("event:")) {
+              eventType = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              dataLines.push(line.slice(5).trim());
             }
-
-            if (dataLines.length === 0) continue;
-
-            let payload: unknown;
-            try {
-              payload = JSON.parse(dataLines.join("\n")) as unknown;
-            } catch {
-              // Malformed JSON – skip this message.
-              continue;
-            }
-
-            dispatch(
-              eventType,
-              payload,
-              subscriptionsRef.current.get(sessionId)?.handlers || handlers,
-            );
+            // Ignore ": heartbeat" comments and blank lines.
           }
+
+          if (dataLines.length === 0) continue;
+
+          let payload: unknown;
+          try {
+            payload = JSON.parse(dataLines.join("\n")) as unknown;
+          } catch {
+            // Malformed JSON – skip this message.
+            continue;
+          }
+
+          dispatch(
+            eventType,
+            payload,
+            subscriptionsRef.current.get(sessionId)?.handlers ?? handlers,
+          );
         }
-      } catch (e) {
-        if (
-          !cancelled &&
-          !(e instanceof DOMException && e.name === "AbortError")
-        ) {
-          handlers.onConnectionError?.(e);
+      }
+    }
+
+    // Reconnect loop: keep re-opening the stream until the controller is
+    // explicitly aborted (i.e. unsubscribe() was called). This ensures that
+    // a proxy timeout or transient network drop at phase-transition time
+    // doesn't leave the client deaf to further phase_changed / turn_added
+    // events.
+    async function connectLoop() {
+      const RETRY_DELAY_MS = 2000;
+      while (!controller.signal.aborted) {
+        try {
+          await connect();
+        } catch (e) {
+          if (e instanceof DOMException && e.name === "AbortError") return;
+          const sub = subscriptionsRef.current.get(sessionId);
+          (sub?.handlers ?? handlers).onConnectionError?.(e);
+        }
+        // Stream closed. Wait before reconnecting so we don't hammer the server.
+        if (!controller.signal.aborted) {
+          await new Promise<void>((r) => setTimeout(r, RETRY_DELAY_MS));
         }
       }
     }
 
     subs.set(sessionId, { controller, handlers });
-    void connect();
+    void connectLoop();
   };
 
   const unsubscribe = (sessionId: string) => {

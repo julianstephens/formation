@@ -1,6 +1,5 @@
 import { useSelectTutorialDialog } from "@/contexts/SelectTutorialDialogContext";
-import { useApi } from "@/lib/ApiContext";
-import type { Tutorial } from "@/lib/types";
+import { useListTutorials } from "@/lib/queries";
 import {
   Badge,
   Box,
@@ -11,34 +10,12 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 export const SelectTutorialDialog = () => {
   const { isOpen, closeDialog } = useSelectTutorialDialog();
-  const api = useApi();
   const navigate = useNavigate();
-  const [tutorials, setTutorials] = useState<Tutorial[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setTutorials(await api.listTutorials());
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [api]);
-
-  useEffect(() => {
-    if (isOpen) {
-      void load();
-    }
-  }, [isOpen, load]);
+  const { data: tutorials = [], isLoading, error } = useListTutorials();
 
   const handleSelectTutorial = (tutorialId: string) => {
     closeDialog();
@@ -54,12 +31,12 @@ export const SelectTutorialDialog = () => {
             <Dialog.Title>Select Tutorial</Dialog.Title>
           </Dialog.Header>
           <Dialog.Body>
-            {loading ? (
+            {isLoading ? (
               <Box textAlign="center" py={4}>
                 <Spinner size="lg" />
               </Box>
             ) : error ? (
-              <Text color="red.500">{error}</Text>
+              <Text color="red.500">{error instanceof Error ? error.message : String(error)}</Text>
             ) : tutorials.length === 0 ? (
               <Text color="gray.500">
                 No tutorials available. Create one first!

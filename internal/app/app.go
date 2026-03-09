@@ -101,6 +101,7 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 	// 6. Create the SSE hub and connect it to the scheduler.
 	hub := sse.New(logger)
 	sched.SetOnPhaseChanged(hub.PublishPhaseChanged)
+	sched.SetOnTurnAdded(hub.PublishTurnAdded)
 	logger.Info("sse hub ready")
 
 	// 7. Build the prompt assembler (parses embedded YAML files once at startup).

@@ -1,9 +1,13 @@
 import { DeleteButton, ExportButton } from "@/components/Button";
 import { useEditSeminarDialog } from "@/contexts/EditSeminarDialogContext";
 import { useNewSessionDialog } from "@/contexts/NewSessionDialogContext";
-import { ApiRequestError } from "@/lib/api";
-import { useApi } from "@/lib/ApiContext";
-import type { Seminar, SeminarSession } from "@/lib/types";
+import {
+  useDeleteSeminar,
+  useDeleteSession,
+  useListSessions,
+  useSeminar,
+} from "@/lib/queries";
+import type { Seminar } from "@/lib/types";
 import {
   Badge,
   Box,
@@ -16,76 +20,38 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { LuPencil } from "react-icons/lu";
 import { useNavigate, useParams } from "react-router-dom";
 
 export default function SeminarDetail() {
   const { id } = useParams<{ id: string; }>();
-  const api = useApi();
   const navigate = useNavigate();
 
-  const [seminar, setSeminar] = useState<Seminar | null>(null);
-  const [sessions, setSessions] = useState<SeminarSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: seminar, isLoading, error: seminarError } = useSeminar(id);
+  const { data: sessions = [] } = useListSessions(id);
+  const deleteSeminarMutation = useDeleteSeminar();
+  const deleteSessionMutation = useDeleteSession();
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   // Use edit dialog hook
-  const { openDialog: openEditDialog, callbackRef: editCallbackRef } =
-    useEditSeminarDialog();
+  const { openDialog: openEditDialog } = useEditSeminarDialog();
 
   // Use new session dialog hook
   const { openDialog: openNewSessionDialog, seminarIdRef } =
     useNewSessionDialog();
 
-  const load = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      setSeminar(await api.getSeminar(id));
-    } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-    // Sessions are non-fatal — load separately so a sessions error
-    // doesn't prevent the seminar from rendering.
-    try {
-      setSessions(await api.listSessions(id));
-    } catch {
-      // non-fatal
-    }
-  }, [id, api]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  // Register callbacks for dialogs
-  useEffect(() => {
-    editCallbackRef.current = (updated) => {
-      setSeminar(updated);
-    };
-    return () => {
-      editCallbackRef.current = null;
-    };
-  }, [editCallbackRef]);
-
-  useEffect(() => {
-    if (id) {
-      seminarIdRef.current = id;
-    }
-  }, [id, seminarIdRef]);
+  // Keep seminarIdRef in sync so the new session dialog knows which seminar to use
+  if (id) seminarIdRef.current = id;
 
   const handleDelete = async () => {
     if (!id || !window.confirm("Delete this seminar? This cannot be undone."))
       return;
     try {
-      await api.deleteSeminar(id);
+      await deleteSeminarMutation.mutateAsync(id);
       navigate("/seminars", { replace: true });
     } catch (e) {
-      setError(String(e));
+      setMutationError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -94,20 +60,20 @@ export default function SeminarDetail() {
     sectionLabel: string,
   ) => {
     if (
+      !id ||
       !window.confirm(
         `Delete session "${sectionLabel}"? This cannot be undone.`,
       )
     )
       return;
     try {
-      await api.deleteSession(sessionId);
-      setSessions(sessions.filter((s) => s.id !== sessionId));
+      await deleteSessionMutation.mutateAsync({ sessionId, seminarId: id });
     } catch (e) {
-      setError(String(e));
+      setMutationError(e instanceof Error ? e.message : String(e));
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <HStack justify="center" mt={20}>
         <Spinner size="xl" />
@@ -116,7 +82,13 @@ export default function SeminarDetail() {
   }
 
   if (!seminar) {
-    return <Text color="red.500">{error ?? "Seminar not found."}</Text>;
+    return (
+      <Text color="red.500">
+        {seminarError instanceof Error
+          ? seminarError.message
+          : "Seminar not found."}
+      </Text>
+    );
   }
 
   const statusColor: Record<string, string> = {
@@ -171,7 +143,7 @@ export default function SeminarDetail() {
               className="grey"
               size="sm"
               variant="outline"
-              onClick={() => seminar && openEditDialog(seminar)}
+              onClick={() => seminar && openEditDialog(seminar as Seminar)}
             >
               <LuPencil />
               Edit
@@ -193,9 +165,9 @@ export default function SeminarDetail() {
           </Text>
         </Card.Root>
 
-        {error && (
+        {mutationError && (
           <Text color="red.500" mb={4}>
-            {error}
+            {mutationError}
           </Text>
         )}
 

@@ -8,7 +8,7 @@
  *   /tutorial-sessions/:id/export  →  tutorial session export
  */
 
-import { useApi } from "@/lib/ApiContext";
+import { useExport } from "@/lib/queries";
 import {
   Box,
   Button,
@@ -37,8 +37,8 @@ interface ExportPageProps {
 }
 
 export default function Export({ resourceType }: ExportPageProps) {
-  const { id } = useParams<{ id: string }>();
-  const api = useApi();
+  const { id } = useParams<{ id: string; }>();
+  const exportMutation = useExport();
   const navigate = useNavigate();
   const [format, setFormat] = useState<Format>("json");
   const [error, setError] = useState<string | null>(null);
@@ -65,25 +65,7 @@ export default function Export({ resourceType }: ExportPageProps) {
     setError(null);
     console.log(`[Export] Attempting to export ${resourceType} with ID:`, id);
     try {
-      let result: { url: string };
-      switch (resourceType) {
-        case "seminar":
-          result = await api.exportSeminar(id, format);
-          break;
-        case "session":
-          result = await api.exportSession(id, format);
-          break;
-        case "tutorial":
-          result = await api.exportTutorial(id, format);
-          break;
-        case "tutorial_session":
-          result = await api.exportTutorialSession(id, format);
-          break;
-        case "problem_set":
-          result = await api.exportProblemSet(id, format);
-          break;
-      }
-
+      const result = await exportMutation.mutateAsync({ resourceType, id, format });
       console.log(`[Export] Success! Opening URL:`, result.url);
       window.open(result.url, "_blank");
     } catch (e) {

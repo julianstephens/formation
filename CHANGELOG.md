@@ -1,3 +1,8 @@
+## v0.1.3
+
+- Redesign seminar session page to match tutorial session  page, with new header, standard chat design, and action components
+- Refactor to tanstack/react-query for data fetching and caching, replacing custom hooks and context-based state management
+
 ## v0.1.2
 
 - Fix chat inputs not displaying

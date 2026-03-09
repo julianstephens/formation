@@ -10,11 +10,13 @@ import {
 } from "@chakra-ui/react";
 import { LuBan } from "react-icons/lu";
 
-export const TutorialSessionActions = ({
+export const ChatActions = ({
   onComplete,
   onAbandon,
   completing,
+  completeDisabled,
   abandoning,
+  abandonDisabled,
   showCompleteForm,
   onToggleCompleteForm,
   notesRef,
@@ -22,7 +24,9 @@ export const TutorialSessionActions = ({
   onComplete: () => void;
   onAbandon: () => void;
   completing: boolean;
+  completeDisabled?: boolean;
   abandoning: boolean;
+  abandonDisabled?: boolean;
   showCompleteForm: boolean;
   onToggleCompleteForm: () => void;
   notesRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -43,6 +47,7 @@ export const TutorialSessionActions = ({
           size="sm"
           variant="subtle"
           colorPalette="red"
+          disabled={abandonDisabled}
           loading={abandoning}
           onClick={onAbandon}
         >
@@ -62,6 +67,7 @@ export const TutorialSessionActions = ({
             />
             <Button
               className="primary"
+              disabled={completeDisabled}
               loading={completing}
               onClick={onComplete}
             >

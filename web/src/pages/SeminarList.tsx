@@ -1,6 +1,5 @@
 import { useSeminarDialog } from "@/contexts/SeminarDialogContext";
-import { useApi } from "@/lib/ApiContext";
-import type { Seminar } from "@/lib/types";
+import { useListSeminars } from "@/lib/queries";
 import {
   Badge,
   Box,
@@ -12,41 +11,13 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const SeminarList = () => {
-  const api = useApi();
   const navigate = useNavigate();
-  const { openDialog, registerOnCreateCallback } = useSeminarDialog();
+  const { openDialog } = useSeminarDialog();
 
-  const [seminars, setSeminars] = useState<Seminar[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setSeminars(await api.listSeminars());
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [api]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  // Register callback for when a seminar is created
-  useEffect(() => {
-    registerOnCreateCallback(load);
-    return () => {
-      registerOnCreateCallback(null);
-    };
-  }, [load, registerOnCreateCallback]);
+  const { data: seminars = [], isLoading, error } = useListSeminars();
 
   return (
     <>
@@ -74,11 +45,11 @@ const SeminarList = () => {
 
         {error && (
           <Text color="red.500" mb={4}>
-            {error}
+            {error instanceof Error ? error.message : String(error)}
           </Text>
         )}
 
-        {loading ? (
+        {isLoading ? (
           <HStack justify="center" mt={16}>
             <Spinner size="xl" />
           </HStack>

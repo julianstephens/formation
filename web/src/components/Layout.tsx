@@ -7,15 +7,32 @@ import { SelectTutorialDialog } from "@/components/dialogs/SelectTutorialDialog"
 import { useEditSeminarDialog } from "@/contexts/EditSeminarDialogContext";
 import { useNewSessionDialog } from "@/contexts/NewSessionDialogContext";
 import { useSeminarDialog } from "@/contexts/SeminarDialogContext";
-import { useApi } from "@/lib/ApiContext";
+import {
+  useCreateSeminar,
+  useCreateSession,
+  useUpdateSeminar,
+} from "@/lib/queries";
 import type {
   CreateSeminarInput,
   CreateSeminarSessionInput,
   UpdateSeminarInput,
 } from "@/lib/types";
-import { Box, Button, Flex, HStack, Spacer, Text } from "@chakra-ui/react";
+import {
+  Box,
+  Button,
+  Flex,
+  HStack,
+  Link,
+  Spacer,
+  Text,
+} from "@chakra-ui/react";
 import React, { useState } from "react";
-import { Outlet, NavLink as RouterLink, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
+
+const ROUTES = {
+  Seminars: "/seminars",
+  Tutorials: "/tutorials",
+};
 
 /**
  * Top-level layout shell: nav bar + page content area.
@@ -24,7 +41,9 @@ import { Outlet, NavLink as RouterLink, useNavigate } from "react-router-dom";
 const BaseLayout = ({ children }: React.PropsWithChildren) => {
   const { logout, user } = useAuthState();
   const navigate = useNavigate();
-  const api = useApi();
+  const createSeminarMutation = useCreateSeminar();
+  const updateSeminarMutation = useUpdateSeminar();
+  const createSessionMutation = useCreateSession();
 
   // Create seminar dialog
   const { isOpen, closeDialog, callbackRef } = useSeminarDialog();
@@ -52,7 +71,7 @@ const BaseLayout = ({ children }: React.PropsWithChildren) => {
 
   const handleCreate = async (input: CreateSeminarInput) => {
     try {
-      await api.createSeminar(input);
+      await createSeminarMutation.mutateAsync(input);
       closeDialog();
       // Call the registered callback to refresh the seminars list
       callbackRef.current?.();
@@ -70,7 +89,10 @@ const BaseLayout = ({ children }: React.PropsWithChildren) => {
     };
     setSaving(true);
     try {
-      const updated = await api.updateSeminar(seminar.id, input);
+      const updated = await updateSeminarMutation.mutateAsync({
+        id: seminar.id,
+        input,
+      });
       closeEditDialog();
       // Call the registered callback to update the page
       editCallbackRef.current?.(updated);
@@ -91,7 +113,7 @@ const BaseLayout = ({ children }: React.PropsWithChildren) => {
     };
     setCreatingSession(true);
     try {
-      const s = await api.createSession(seminarId, input);
+      const s = await createSessionMutation.mutateAsync({ seminarId, input });
       closeSessionDialog();
       navigate(`/sessions/${s.id}`);
     } finally {
@@ -116,28 +138,35 @@ const BaseLayout = ({ children }: React.PropsWithChildren) => {
           py={3}
         >
           <HStack d="flex" alignItems="center" gap={{ base: 3, md: 6 }}>
-            <Text
+            <Link
               mr="1rem"
               fontWeight="bold"
               fontSize="lg"
               cursor="pointer"
               flexShrink={0}
-              onClick={() => navigate("/")}
+              color="white"
+              _hover={{ color: "#f59e0b" }}
+              _focus={{ outline: "none", border: "none" }}
+              _active={{ outline: "none", border: "none" }}
+              transition="color 0.25s"
+              href="/"
             >
               Formation
-            </Text>
-            <RouterLink
-              to="/seminars"
-              style={{ color: "inherit", fontSize: "0.9rem" }}
-            >
-              Seminars
-            </RouterLink>
-            <RouterLink
-              to="/tutorials"
-              style={{ color: "inherit", fontSize: "0.9rem" }}
-            >
-              Tutorials
-            </RouterLink>
+            </Link>
+            {Object.entries(ROUTES).map(([k, v]) => (
+              <Link
+                key={k}
+                href={v}
+                fontSize="md"
+                color="white"
+                _hover={{ color: "#f59e0b" }}
+                _focus={{ outline: "none", border: "none" }}
+                _active={{ outline: "none", border: "none" }}
+                transition="color 0.25s"
+              >
+                {k}
+              </Link>
+            ))}
             <Spacer />
             {user && (
               <HStack gap={2} flexShrink={0}>

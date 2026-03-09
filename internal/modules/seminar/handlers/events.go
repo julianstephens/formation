@@ -118,7 +118,7 @@ func (h *EventsHandler) Stream(c *gin.Context) {
 
 		// Per-second timer tick – only for timed phases.
 		case <-tickTicker.C:
-			if sess.IsTerminal() || !sess.PhaseEndsAt.IsZero() {
+			if !sess.IsTerminal() && !sess.PhaseEndsAt.IsZero() {
 				remaining := time.Until(sess.PhaseEndsAt).Seconds()
 				if remaining < 0 {
 					remaining = 0

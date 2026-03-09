@@ -1,5 +1,5 @@
-import { useApi } from "@/lib/ApiContext";
-import type { SeminarSessionDetail, SeminarSessionPhase, Turn } from "@/lib/types";
+import { useSession } from "@/lib/queries";
+import type { SeminarSessionPhase, Turn } from "@/lib/types";
 import {
   Badge,
   Box,
@@ -11,7 +11,6 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 const PHASE_LABELS: Record<SeminarSessionPhase, string> = {
@@ -24,31 +23,11 @@ const PHASE_LABELS: Record<SeminarSessionPhase, string> = {
 
 export default function SessionReview() {
   const { id } = useParams<{ id: string; }>();
-  const api = useApi();
   const navigate = useNavigate();
 
-  const [session, setSession] = useState<SeminarSessionDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: session, isLoading, error } = useSession(id);
 
-  const load = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      setSession(await api.getSession(id));
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [id, api]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <HStack justify="center" mt={20}>
         <Spinner size="xl" />
@@ -57,7 +36,7 @@ export default function SessionReview() {
   }
 
   if (!session) {
-    return <Text color="red.500">{error ?? "Session not found."}</Text>;
+    return <Text color="red.500">{error instanceof Error ? error.message : "Session not found."}</Text>;
   }
 
   // Group turns by phase for the readable review layout.

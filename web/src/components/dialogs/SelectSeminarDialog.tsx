@@ -1,6 +1,5 @@
 import { useSelectSeminarDialog } from "@/contexts/SelectSeminarDialogContext";
-import { useApi } from "@/lib/ApiContext";
-import type { Seminar } from "@/lib/types";
+import { useListSeminars } from "@/lib/queries";
 import {
   Badge,
   Box,
@@ -11,34 +10,12 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 export const SelectSeminarDialog = () => {
   const { isOpen, closeDialog } = useSelectSeminarDialog();
-  const api = useApi();
   const navigate = useNavigate();
-  const [seminars, setSeminars] = useState<Seminar[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setSeminars(await api.listSeminars());
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [api]);
-
-  useEffect(() => {
-    if (isOpen) {
-      void load();
-    }
-  }, [isOpen, load]);
+  const { data: seminars = [], isLoading, error } = useListSeminars();
 
   const handleSelectSeminar = (seminarId: string) => {
     closeDialog();
@@ -54,12 +31,12 @@ export const SelectSeminarDialog = () => {
             <Dialog.Title>Select Seminar</Dialog.Title>
           </Dialog.Header>
           <Dialog.Body>
-            {loading ? (
+            {isLoading ? (
               <Box textAlign="center" py={4}>
                 <Spinner size="lg" />
               </Box>
             ) : error ? (
-              <Text color="red.500">{error}</Text>
+              <Text color="red.500">{error instanceof Error ? error.message : String(error)}</Text>
             ) : seminars.length === 0 ? (
               <Text color="gray.500">
                 No seminars available. Create one first!

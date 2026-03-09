@@ -27,6 +27,8 @@ export interface PhaseChangedPayload {
   phase: SeminarSessionPhase;
   /** ISO-8601 timestamp; absent when phase has no time limit (e.g. done). */
   phase_ends_at?: string;
+  /** ISO-8601 timestamp of when the new phase started, as recorded by the server. */
+  phase_started_at?: string;
 }
 
 export interface TimerTickPayload {

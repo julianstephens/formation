@@ -41,6 +41,17 @@ const PHASE_DETAILS: Record<
   },
 };
 
+const capitalizeEachWord = (str: string) => {
+  const words = str.split(" ");
+  const capitalizedWords = words.map((word) => {
+    if (word.length > 0) {
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }
+    return word;
+  });
+  return capitalizedWords.join(" ");
+};
+
 export const SeminarSessionHeader = ({
   detail,
   phaseInfo,
@@ -53,18 +64,31 @@ export const SeminarSessionHeader = ({
   phaseInfo: {
     isResiduePhase: boolean;
     isDone: boolean;
-    secondsRemaining: number;
+    secondsRemaining: number | null;
   };
 }) => {
   const totalDurationSeconds =
     (new Date(detail.phase_ends_at).getTime() -
       new Date(detail.phase_started_at).getTime()) /
     1000;
-  const phaseProgress = phaseInfo.isDone
-    ? 100
-    : Math.round(
-        100 - (phaseInfo.secondsRemaining / totalDurationSeconds) * 100,
-      );
+
+  const phaseProgress = (() => {
+    // Residue and done phases have no timer — always show full.
+    if (phaseInfo.isDone || phaseInfo.isResiduePhase) return 100;
+    // Null means we're waiting for the first authoritative timer_tick.
+    if (phaseInfo.secondsRemaining === null) return 0;
+    // Guard against invalid duration (e.g. stale timestamps).
+    if (totalDurationSeconds <= 0) return 0;
+    return Math.min(
+      100,
+      Math.max(
+        0,
+        Math.round(
+          100 - (phaseInfo.secondsRemaining / totalDurationSeconds) * 100,
+        ),
+      ),
+    );
+  })();
 
   return (
     <>
@@ -129,21 +153,23 @@ export const SeminarSessionHeader = ({
               {Object.keys(PHASE_DETAILS)
                 .filter((k) => k !== "done")
                 .map((p) => (
-                  <>
+                  <Box key={p} w="full">
                     <Progress.Root
-                      {...(p === detail.phase
-                        ? {
-                            "data-tooltip-id": `${p}Progress`,
-                            "data-tooltip-content": `Phase ends at ${new Date(detail.phase_ends_at).toLocaleTimeString()} (${Math.round(phaseInfo.secondsRemaining / 60)} min)`,
-                            "data-tooltip-place": "top",
-                          }
-                        : {})}
-                      key={p}
+                      data-tooltip-id={`${p}Progress`}
+                      data-tooltip-content={
+                        detail.phase === p
+                          ? `${capitalizeEachWord(p.replaceAll("_", " "))} ends at ${new Date(detail.phase_ends_at).toLocaleTimeString()}${phaseInfo.secondsRemaining !== null ? ` (${Math.round(phaseInfo.secondsRemaining / 60)} min)` : ""}`
+                          : PHASE_DETAILS[detail.phase].order >
+                            PHASE_DETAILS[p as SeminarSessionPhase].order
+                            ? `${capitalizeEachWord(p.replaceAll("_", " "))} Completed`
+                            : `${capitalizeEachWord(p.replaceAll("_", " "))} Pending`
+                      }
+                      data-tooltip-place="top"
                       value={
                         detail.phase === p
                           ? phaseProgress
                           : PHASE_DETAILS[detail.phase].order >
-                              PHASE_DETAILS[p as SeminarSessionPhase].order
+                            PHASE_DETAILS[p as SeminarSessionPhase].order
                             ? 100
                             : 0
                       }
@@ -156,7 +182,7 @@ export const SeminarSessionHeader = ({
                       </Progress.Track>
                     </Progress.Root>
                     <Tooltip id={`${p}Progress`} />
-                  </>
+                  </Box>
                 ))}
             </HStack>
             <Alert.Root

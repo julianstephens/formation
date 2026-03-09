@@ -98,6 +98,9 @@ export function TutorialSessionEventsProvider({
           handlers.onConnectionError?.(
             new Error(`SSE connect failed: ${res.status} ${res.statusText}`),
           );
+          if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+            controller.abort();
+          }
           return;
         }
 

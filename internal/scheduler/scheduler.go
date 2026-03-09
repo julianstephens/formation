@@ -44,6 +44,11 @@ type Scheduler struct {
 	// successful phase transition. Registered by the SSE hub in a later phase.
 	// Must be non-blocking.
 	onPhaseChanged func(sess *domain.Session)
+
+	// onTurnAdded is invoked after a system turn is inserted for a phase
+	// transition. Registered by the SSE hub so the turn reaches the client.
+	// Must be non-blocking.
+	onTurnAdded func(turn *domain.Turn)
 }
 
 // New creates a Scheduler backed by the given SessionRepo.
@@ -52,19 +57,26 @@ func New(r *repo.SessionRepo, logger *slog.Logger) *Scheduler {
 		timers:         make(map[string]*time.Timer),
 		sessRepo:       r,
 		log:            logger,
-		onPhaseChanged: func(_ *domain.Session) {}, // no-op until SSE hub (step 7)
+		onPhaseChanged: func(_ *domain.Session) {}, // no-op until SSE hub
+		onTurnAdded:    func(_ *domain.Turn) {},    // no-op until SSE hub
 	}
 }
 
 // SetOnPhaseChanged registers a callback that is invoked after each
 // authoritative phase transition. The callback receives the updated session
 // (already persisted) and must not block.
-//
-// This hook is the integration point for the SSE hub (step 7).
 func (s *Scheduler) SetOnPhaseChanged(fn func(sess *domain.Session)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.onPhaseChanged = fn
+}
+
+// SetOnTurnAdded registers a callback that is invoked after a system turn is
+// inserted for a phase transition. The callback must not block.
+func (s *Scheduler) SetOnTurnAdded(fn func(turn *domain.Turn)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onTurnAdded = fn
 }
 
 // Register schedules a phase-advance timer for sess. If the session is already
@@ -175,19 +187,24 @@ func (s *Scheduler) advance(sessionID string, fromPhase domain.SessionPhase) {
 
 	// Insert a system turn so the turn transcript reflects the phase change.
 	// This is non-fatal: a logging failure should not undo the transition.
-	if _, err := service.InsertPhaseChangeTurn(ctx, s.sessRepo, sessionID, sess.Phase); err != nil {
+	systemTurn, turnErr := service.InsertPhaseChangeTurn(ctx, s.sessRepo, sessionID, sess.Phase)
+	if turnErr != nil {
 		s.log.Error("scheduler: insert phase-change system turn failed",
 			"session", sessionID,
 			"phase", sess.Phase,
-			"err", err,
+			"err", turnErr,
 		)
 	}
 
 	// Notify the SSE hub (or any other observer). Non-blocking by contract.
 	s.mu.Lock()
 	cb := s.onPhaseChanged
+	turnCb := s.onTurnAdded
 	s.mu.Unlock()
 	cb(sess)
+	if systemTurn != nil {
+		turnCb(systemTurn)
+	}
 
 	// Chain: schedule the next timer if the new phase is also timed.
 	if isTimedPhase(sess.Phase) {

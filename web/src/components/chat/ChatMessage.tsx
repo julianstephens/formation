@@ -1,9 +1,9 @@
 import { Box, Flex, Icon, Text } from "@chakra-ui/react";
-import { LuBot, LuCircleAlert, LuUser } from "react-icons/lu";
+import { LuBot, LuCircleAlert, LuInfo, LuUser } from "react-icons/lu";
 import "./chat.css";
 
 interface ChatMessageProps {
-  role: "user" | "agent";
+  role: "user" | "agent" | "system";
   content: string;
   timestamp?: string;
   failed?: boolean;
@@ -16,6 +16,36 @@ export function ChatMessage({
   failed,
 }: ChatMessageProps) {
   const isUser = role === "user";
+
+  // ── System message: centered divider banner ─────────────────────────────────
+  if (role === "system") {
+    return (
+      <Flex align="center" gap={3} my={3} px={2}>
+        <Box flex="1" h="px" bg="whiteAlpha.200" />
+        <Flex
+          align="center"
+          gap={1.5}
+          px={3}
+          py={1}
+          rounded="full"
+          bg="whiteAlpha.100"
+          color="gray.400"
+          fontSize="xs"
+          fontStyle="italic"
+          flexShrink={0}
+        >
+          <Icon as={LuInfo} w={3} h={3} />
+          <Text>{content}</Text>
+          {timestamp && (
+            <Text color="gray.600" ml={1}>
+              {timestamp}
+            </Text>
+          )}
+        </Flex>
+        <Box flex="1" h="px" bg="whiteAlpha.200" />
+      </Flex>
+    );
+  }
 
   return (
     <Flex gap={3} mb={4} alignItems="start">

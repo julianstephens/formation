@@ -1,6 +1,5 @@
 import { ExportButton } from "@/components/Button";
-import { useApi } from "@/lib/ApiContext";
-import type { ProblemSet } from "@/lib/types";
+import { useTutorialProblemSets } from "@/lib/queries";
 import {
   Badge,
   Box,
@@ -13,7 +12,6 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { useCallback, useEffect, useState } from "react";
 import type { IconType } from "react-icons";
 import {
   LuArrowLeft,
@@ -40,38 +38,10 @@ const statusIcon: Record<string, IconType> = {
 
 const ProblemSetDetail = () => {
   const params = useParams();
-  const api = useApi();
-  const [problemSet, setProblemSet] = useState<ProblemSet | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: problemSets = [], isLoading, error } = useTutorialProblemSets(params.id);
+  const problemSet = problemSets.find((p) => p.id === params.problemSetId);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Fetch all problem sets for the tutorial
-      const problemSets = await api.listTutorialProblemSets(params.id!);
-
-      // Find the specific problem set by ID
-      const ps = problemSets.find((p) => p.id === params.problemSetId);
-
-      if (!ps) {
-        setError("Problem set not found");
-      } else {
-        setProblemSet(ps);
-      }
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [api, params.id, params.problemSetId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <VStack w="full" h="full" align="center" justify="center">
         <Spinner size="xl" />
@@ -79,14 +49,11 @@ const ProblemSetDetail = () => {
     );
   }
 
-  if (error || !problemSet) {
+  if (!problemSet) {
     return (
-      <VStack w="full" h="full" align="start" p={6}>
-        <Button onClick={() => window.history.back()}>
-          Back to problem sets
-        </Button>
-        <Text color="red.500">{error || "Problem set not found"}</Text>
-      </VStack>
+      <Text color="red.500">
+        {error instanceof Error ? error.message : "Problem set not found"}
+      </Text>
     );
   }
 

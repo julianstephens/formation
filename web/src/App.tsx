@@ -21,7 +21,7 @@ import SeminarSessionRunner from "@/pages/SeminarSessionRunner";
 import SessionReview from "@/pages/SessionReview";
 import TutorialDetail from "@/pages/TutorialDetail";
 import TutorialList from "@/pages/TutorialList";
-import TutorialSessionRunner from "@/pages/TutorialSession";
+import TutorialSessionRunner from "@/pages/TutorialSessionRunner";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 function App() {

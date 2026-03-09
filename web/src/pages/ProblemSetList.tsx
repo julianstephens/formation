@@ -1,5 +1,5 @@
 import { ExportButton } from "@/components/Button";
-import { useApi } from "@/lib/ApiContext";
+import { useTutorialProblemSets } from "@/lib/queries";
 import type { ProblemSet } from "@/lib/types";
 import {
   Badge,
@@ -13,7 +13,6 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { useCallback, useEffect, useState } from "react";
 import type { IconType } from "react-icons";
 import {
   LuCircleAlert,
@@ -37,7 +36,7 @@ const statusIcon: Record<string, IconType> = {
   deleted: LuCircleAlert,
 };
 
-const ProblemSetButton = ({ ps }: { ps: ProblemSet }) => {
+const ProblemSetButton = ({ ps }: { ps: ProblemSet; }) => {
   const navigate = useNavigate();
   const patterns = [
     ...new Set(
@@ -116,45 +115,15 @@ const ProblemSetButton = ({ ps }: { ps: ProblemSet }) => {
 };
 
 const ProblemSetList = () => {
-  const api = useApi();
   const params = useParams();
-  const [problemSets, setProblemSets] = useState<ProblemSet[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: rawProblemSets = [], isLoading, error } = useTutorialProblemSets(params.id);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Fetch problem sets for each tutorial
-      const problemSetsArrays = await api
-        .listTutorialProblemSets(params.id!)
-        .catch((err) => {
-          console.error("Error fetching problem sets:", err);
-          return [] as ProblemSet[]; // Return empty array on error to prevent breaking the UI
-        });
+  const problemSets = [...rawProblemSets].sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
 
-      // Flatten and sort by created_at (newest first)
-      const allProblemSets = problemSetsArrays
-        .flat()
-        .sort(
-          (a, b) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-        );
-
-      setProblemSets(allProblemSets);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [api, params.id]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <HStack justify="center" mt={20}>
         <Spinner size="xl" />
@@ -163,7 +132,11 @@ const ProblemSetList = () => {
   }
 
   if (error) {
-    return <Text color="red.500">Failed to load problem sets: {error}</Text>;
+    return (
+      <Text color="red.500">
+        Failed to load problem sets: {error instanceof Error ? error.message : String(error)}
+      </Text>
+    );
   }
 
   const assignedProblemSets = problemSets.filter(

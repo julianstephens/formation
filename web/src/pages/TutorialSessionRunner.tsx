@@ -1,9 +1,9 @@
+import { ChatActions } from "@/components/chat/ChatActions";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { TurnList } from "@/components/chat/TurnList";
 import { ArtifactsDialog } from "@/components/dialogs/ArtifactsDialog";
 import { CreateArtifactDialog } from "@/components/dialogs/CreateArtifactDialog";
 import { ArtifactPanel } from "@/components/tutorials/ArtifactPanel";
-import { TutorialTurnList } from "@/components/tutorials/TurnList";
-import { TutorialSessionActions } from "@/components/tutorials/TutorialSessionActions";
 import { TutorialSessionHeader } from "@/components/tutorials/TutorialSessionHeader";
 import { useCreateArtifactDialog } from "@/contexts/CreateArtifactDialogContext";
 import {
@@ -11,7 +11,15 @@ import {
   useTutorialSessionEventsUnsubscribe,
 } from "@/contexts/TutorialSessionEventsContext";
 import { ApiRequestError } from "@/lib/api";
-import { useApi } from "@/lib/ApiContext";
+import {
+  useAbandonTutorialSession,
+  useCompleteTutorialSession,
+  useCreateArtifact,
+  useDeleteArtifact,
+  useDeleteSessionProblemSet,
+  useSubmitTutorialTurn,
+  useTutorialSession,
+} from "@/lib/queries";
 import type {
   Artifact,
   TutorialSessionDetail,
@@ -27,24 +35,33 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useParams } from "react-router-dom";
 
 // ── Main component ────────────────────────────────────────────────────────────
 
 const TutorialSessionRunner = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string; }>();
   console.log("[TutorialSessionRunner] Component rendered, id:", id);
-  const api = useApi();
   const unsubscribe = useTutorialSessionEventsUnsubscribe();
+
+  // Query: initial session load
+  const { data: sessionData, isLoading, error: loadError } = useTutorialSession(id);
+
+  // Mutations
+  const submitTurnMutation = useSubmitTutorialTurn();
+  const completeMutation = useCompleteTutorialSession();
+  const abandonMutation = useAbandonTutorialSession();
+  const createArtifactMutation = useCreateArtifact();
+  const deleteArtifactMutation = useDeleteArtifact();
+  const deleteProblemSetMutation = useDeleteSessionProblemSet();
 
   // Artifact dialog
   const artifactDialog = useCreateArtifactDialog();
   const [creatingArtifact, setCreatingArtifact] = useState(false);
   const [artifactsDialogOpen, setArtifactsDialogOpen] = useState(false);
 
-  // Session + artifacts
   const [detail, setDetail] = useState<TutorialSessionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,33 +88,35 @@ const TutorialSessionRunner = () => {
   // Refs
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const notesRef = useRef<HTMLTextAreaElement | null>(null);
+  const initializedRef = useRef(false);
 
-  const load = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const session = await api.getTutorialSession(id);
-      setDetail(session);
-      setTurns(session.turns ?? []);
+  // Initialize local state from query data on first load.
+  useEffect(() => {
+    if (sessionData && !initializedRef.current) {
+      initializedRef.current = true;
+      setDetail(sessionData);
+      setTurns(sessionData.turns ?? []);
+      setLoading(false);
       // Populate failedTurns from backend data
       const failed = new Set<string>();
-      for (const turn of session.turns ?? []) {
+      for (const turn of sessionData.turns ?? []) {
         if (turn.failed) {
           failed.add(turn.id);
         }
       }
       setFailedTurns(failed);
-    } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : String(e));
-    } finally {
-      setLoading(false);
     }
-  }, [id, api]);
+  }, [sessionData]);
 
+  // Sync loading state with query
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!isLoading && !initializedRef.current && !sessionData) {
+      setLoading(false);
+      if (loadError) {
+        setError(loadError instanceof Error ? loadError.message : String(loadError));
+      }
+    }
+  }, [isLoading, sessionData, loadError]);
 
   // Auto-scroll to bottom when turns update or streaming chunks arrive.
   useEffect(() => {
@@ -155,9 +174,9 @@ const TutorialSessionRunner = () => {
       setDetail((prev) =>
         prev
           ? {
-              ...prev,
-              artifacts: prev.artifacts.filter((a) => a.id !== artifact_id),
-            }
+            ...prev,
+            artifacts: prev.artifacts.filter((a) => a.id !== artifact_id),
+          }
           : prev,
       );
     },
@@ -206,7 +225,7 @@ const TutorialSessionRunner = () => {
     setTurnError(null);
 
     try {
-      const response = await api.submitTutorialTurn(id, text);
+      const response = await submitTurnMutation.mutateAsync({ sessionId: id, text });
       setTurns((prev) => {
         // Replace optimistic turn with real user turn, add agent turn if present
         const withoutOptimistic = prev.filter((t) => t.id !== optimisticId);
@@ -249,7 +268,7 @@ const TutorialSessionRunner = () => {
     setCompleting(true);
     try {
       const notes = notesRef.current?.value.trim() ?? "";
-      const updated = await api.completeTutorialSession(id, notes);
+      const updated = await completeMutation.mutateAsync({ sessionId: id, notes });
       setDetail((prev) => (prev ? { ...prev, ...updated } : null));
       setShowCompleteForm(false);
       if (id) unsubscribe(id);
@@ -264,7 +283,7 @@ const TutorialSessionRunner = () => {
     if (!id || !window.confirm("Abandon this session?")) return;
     setAbandoning(true);
     try {
-      const updated = await api.abandonTutorialSession(id);
+      const updated = await abandonMutation.mutateAsync(id);
       setDetail((prev) => (prev ? { ...prev, ...updated } : null));
       unsubscribe(id);
     } catch (e) {
@@ -277,13 +296,13 @@ const TutorialSessionRunner = () => {
   const handleDeleteArtifact = async (artifact: Artifact) => {
     if (!id || !window.confirm(`Delete artifact "${artifact.title}"?`)) return;
     try {
-      await api.deleteArtifact(id, artifact.id);
+      await deleteArtifactMutation.mutateAsync({ sessionId: id, artifactId: artifact.id });
       setDetail((prev) =>
         prev
           ? {
-              ...prev,
-              artifacts: prev.artifacts.filter((a) => a.id !== artifact.id),
-            }
+            ...prev,
+            artifacts: prev.artifacts.filter((a) => a.id !== artifact.id),
+          }
           : null,
       );
     } catch (e) {
@@ -305,11 +324,14 @@ const TutorialSessionRunner = () => {
     setError(null);
 
     try {
-      const artifact = await api.createArtifact(id, {
-        kind: artifactDialog.kind,
-        title,
-        content,
-        problem_set_id: problemSetId,
+      const artifact = await createArtifactMutation.mutateAsync({
+        sessionId: id,
+        input: {
+          kind: artifactDialog.kind,
+          title,
+          content,
+          problem_set_id: problemSetId,
+        },
       });
       setDetail((prev) =>
         prev ? { ...prev, artifacts: [...prev.artifacts, artifact] } : prev,
@@ -339,7 +361,7 @@ const TutorialSessionRunner = () => {
     if (!window.confirm("Delete this problem set?")) return;
 
     try {
-      await api.deleteSessionProblemSet(id);
+      await deleteProblemSetMutation.mutateAsync(id);
       setDetail((prev) => (prev ? { ...prev, problem_set: undefined } : prev));
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : String(e));
@@ -425,7 +447,7 @@ const TutorialSessionRunner = () => {
           <Heading size="sm" mb={3}>
             Conversation
           </Heading>
-          <TutorialTurnList
+          <TurnList
             turns={turns}
             streamingTurns={streamingTurns}
             failedTurns={failedTurns}
@@ -441,7 +463,7 @@ const TutorialSessionRunner = () => {
 
         {/* D. Completion controls */}
         {!isTerminal && (
-          <TutorialSessionActions
+          <ChatActions
             onComplete={() => void handleComplete()}
             onAbandon={() => void handleAbandon()}
             completing={completing}

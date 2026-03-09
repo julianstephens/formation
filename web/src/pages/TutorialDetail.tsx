@@ -1,10 +1,13 @@
 import { DeleteButton, ExportButton } from "@/components/Button";
 import { NewTutorialSessionDialog } from "@/components/dialogs/NewTutorialSessionDialog";
-import { ApiRequestError } from "@/lib/api";
-import { useApi } from "@/lib/ApiContext";
+import {
+  useCreateTutorialSession,
+  useDeleteTutorial,
+  useDeleteTutorialSession,
+  useListTutorialSessions,
+  useTutorial,
+} from "@/lib/queries";
 import type {
-  Tutorial,
-  TutorialSession,
   TutorialSessionKind,
 } from "@/lib/types";
 import {
@@ -19,7 +22,7 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { LuFileText } from "react-icons/lu";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -30,50 +33,30 @@ const statusColor: Record<string, string> = {
 };
 
 export default function TutorialDetail() {
-  const { id } = useParams<{ id: string }>();
-  const api = useApi();
+  const { id } = useParams<{ id: string; }>();
   const navigate = useNavigate();
 
-  const [tutorial, setTutorial] = useState<Tutorial | null>(null);
-  const [sessions, setSessions] = useState<TutorialSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: tutorial, isLoading, error: tutorialError } = useTutorial(id);
+  const { data: sessions = [] } = useListTutorialSessions(id);
+  const deleteTutorialMutation = useDeleteTutorial();
+  const createSessionMutation = useCreateTutorialSession();
+  const deleteSessionMutation = useDeleteTutorialSession();
+
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedKind, setSelectedKind] = useState<TutorialSessionKind | null>(
     null,
   );
 
-  const load = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      setTutorial(await api.getTutorial(id));
-    } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-    try {
-      setSessions(await api.listTutorialSessions(id));
-    } catch {
-      // non-fatal
-    }
-  }, [id, api]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
   const handleDelete = async () => {
     if (!id || !window.confirm("Delete this tutorial? This cannot be undone."))
       return;
     try {
-      await api.deleteTutorial(id);
+      await deleteTutorialMutation.mutateAsync(id);
       navigate("/tutorials", { replace: true });
     } catch (e) {
-      setError(String(e));
+      setMutationError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -87,28 +70,29 @@ export default function TutorialDetail() {
     setStarting(true);
     setDialogOpen(false);
     try {
-      const sess = await api.createTutorialSession(id, {
-        kind: selectedKind ?? undefined,
+      const sess = await createSessionMutation.mutateAsync({
+        tutorialId: id,
+        input: { kind: selectedKind ?? undefined },
       });
       navigate(`/tutorial-sessions/${sess.id}`);
     } catch (e) {
-      setError(String(e));
+      setMutationError(e instanceof Error ? e.message : String(e));
     } finally {
       setStarting(false);
     }
   };
 
   const handleDeleteSession = async (sessionId: string) => {
-    if (!window.confirm("Delete this session? This cannot be undone.")) return;
+    if (!id || !window.confirm("Delete this session? This cannot be undone."))
+      return;
     try {
-      await api.deleteTutorialSession(sessionId);
-      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      await deleteSessionMutation.mutateAsync({ sessionId, tutorialId: id });
     } catch (e) {
-      setError(String(e));
+      setMutationError(e instanceof Error ? e.message : String(e));
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <HStack justify="center" mt={20}>
         <Spinner size="xl" />
@@ -117,7 +101,13 @@ export default function TutorialDetail() {
   }
 
   if (!tutorial) {
-    return <Text color="red.500">{error ?? "Tutorial not found."}</Text>;
+    return (
+      <Text color="red.500">
+        {tutorialError instanceof Error
+          ? tutorialError.message
+          : "Tutorial not found."}
+      </Text>
+    );
   }
 
   return (
@@ -160,9 +150,9 @@ export default function TutorialDetail() {
         </Card.Root>
       )}
 
-      {error && (
+      {mutationError && (
         <Text color="red.500" mb={4}>
-          {error}
+          {mutationError}
         </Text>
       )}
 

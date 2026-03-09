@@ -1,7 +1,6 @@
 import { useSelectSeminarDialog } from "@/contexts/SelectSeminarDialogContext";
 import { useSelectTutorialDialog } from "@/contexts/SelectTutorialDialogContext";
-import { useApi } from "@/lib/ApiContext";
-import type { Seminar, SeminarSession, Tutorial, TutorialSession } from "@/lib/types";
+import { type DashboardSession, useDashboardSessions } from "@/lib/queries";
 import {
   Badge,
   Button,
@@ -13,19 +12,7 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-interface UnifiedSession {
-  id: string;
-  type: "seminar" | "tutorial";
-  title: string;
-  status: string;
-  started_at: string;
-  kind?: string; // For tutorial sessions
-  seminar_id?: string;
-  tutorial_id?: string;
-}
 
 const statusColorMap: Record<string, string> = {
   in_progress: "yellow",
@@ -40,114 +27,13 @@ const statusLabelMap: Record<string, string> = {
 };
 
 const Dashboard = () => {
-  const api = useApi();
   const navigate = useNavigate();
   const { openDialog: openSelectSeminar } = useSelectSeminarDialog();
   const { openDialog: openSelectTutorial } = useSelectTutorialDialog();
 
-  const [sessions, setSessions] = useState<UnifiedSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: sessions = [], isLoading, error } = useDashboardSessions();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Fetch all seminars and tutorials
-      const [seminars, tutorials] = await Promise.all([
-        api.listSeminars(),
-        api.listTutorials(),
-      ]);
-
-      // Fetch sessions for each seminar and tutorial
-      const [seminarSessionsArrays, tutorialSessionsArrays] = await Promise.all(
-        [
-          Promise.all(
-            seminars.map((s) =>
-              api.listSessions(s.id).catch(() => [] as SeminarSession[]),
-            ),
-          ),
-          Promise.all(
-            tutorials.map((t) =>
-              api
-                .listTutorialSessions(t.id)
-                .catch(() => [] as TutorialSession[]),
-            ),
-          ),
-        ],
-      );
-
-      // Create maps for easy lookup
-      const seminarMap = new Map<string, Seminar>(
-        seminars.map((s) => [s.id, s]),
-      );
-      const tutorialMap = new Map<string, Tutorial>(
-        tutorials.map((t) => [t.id, t]),
-      );
-
-      // Flatten and transform seminar sessions
-      const unifiedSeminarSessions: UnifiedSession[] = seminarSessionsArrays
-        .flat()
-        .map((session) => {
-          const seminar = seminarMap.get(session.seminar_id);
-          return {
-            id: session.id,
-            type: "seminar" as const,
-            title: seminar
-              ? `${seminar.title} - ${session.section_label}`
-              : session.section_label,
-            status: session.status,
-            started_at: session.started_at,
-            seminar_id: session.seminar_id,
-          };
-        });
-
-      // Flatten and transform tutorial sessions
-      const unifiedTutorialSessions: UnifiedSession[] = tutorialSessionsArrays
-        .flat()
-        .map((session) => {
-          const tutorial = tutorialMap.get(session.tutorial_id);
-          return {
-            id: session.id,
-            type: "tutorial" as const,
-            title: tutorial ? `${tutorial.title}` : `Tutorial Session`,
-            status: session.status,
-            started_at: session.started_at,
-            tutorial_id: session.tutorial_id,
-            kind: session.kind,
-          };
-        });
-
-      // Combine and sort: in_progress first (by recent date), then complete/abandoned at bottom (by recent date)
-      const combined = [...unifiedSeminarSessions, ...unifiedTutorialSessions]
-        .sort((a, b) => {
-          // Priority: in_progress > complete/abandoned
-          const aIsActive = a.status === "in_progress";
-          const bIsActive = b.status === "in_progress";
-
-          if (aIsActive && !bIsActive) return -1;
-          if (!aIsActive && bIsActive) return 1;
-
-          // Within same priority group, sort by date (most recent first)
-          return (
-            new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
-          );
-        })
-        .slice(0, 5);
-
-      setSessions(combined);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [api]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const handleSessionClick = (session: UnifiedSession) => {
+  const handleSessionClick = (session: DashboardSession) => {
     if (session.type === "seminar") {
       navigate(`/sessions/${session.id}`);
     } else {
@@ -191,11 +77,11 @@ const Dashboard = () => {
         </HStack>
       </HStack>
       <VStack id="sessions" mt="6">
-        {loading ? (
+        {isLoading ? (
           <Spinner size="xl" mt={8} />
         ) : error ? (
           <Text color="red.500" mt={4}>
-            {error}
+            {error instanceof Error ? error.message : String(error)}
           </Text>
         ) : sessions.length === 0 ? (
           <Text color="gray.500" mt={8}>
