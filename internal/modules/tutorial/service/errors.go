@@ -15,6 +15,9 @@ type ValidationError = sharedService.ValidationError
 // NotFoundError is re-exported from shared service for convenience.
 type NotFoundError = sharedService.NotFoundError
 
+// ConflictError is re-exported from shared service for convenience.
+type ConflictError = sharedService.ConflictError
+
 // wrapNotFound converts a repo.ErrNotFound into a NotFoundError with context.
 func wrapNotFound(err error, resource, id string) error {
 	if errors.Is(err, sharedRepo.ErrNotFound) {

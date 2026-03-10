@@ -302,7 +302,7 @@ func (h *TutorialSessionHandler) CreateArtifact(c *gin.Context) {
 		ProblemSetID: req.ProblemSetID,
 	})
 	if err != nil {
-		handleServiceError(c, err)
+		handleTutorialSessionServiceError(c, err)
 		return
 	}
 
@@ -357,7 +357,7 @@ func (h *TutorialSessionHandler) SubmitTurn(c *gin.Context) {
 
 	result, err := h.turnSvc.SubmitTutorialTurn(c.Request.Context(), c.Param("id"), ownerSub, req.Text)
 	if err != nil {
-		handleServiceError(c, err)
+		handleTutorialSessionServiceError(c, err)
 		return
 	}
 

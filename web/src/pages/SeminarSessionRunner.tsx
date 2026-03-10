@@ -29,11 +29,27 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+
+function buildInitialTemplate(
+  workingQuestion: string,
+  initialClaims: string | null,
+): string {
+  const claimsSection = initialClaims
+    ? initialClaims
+    : "...\n1. ...\n2. ...\n3. ...";
+  return (
+    `Working question:\n${workingQuestion}` +
+    `\n\nInitial claims:\n${claimsSection}` +
+    `\n\nTerms needing definition:\n...\n- ...\n- ...` +
+    `\n\nUncertainty:\n...\n...`
+  );
+}
 
 const SeminarSessionRunner = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const unsubscribe = useSessionEventsUnsubscribe();
 
   const {
@@ -186,7 +202,7 @@ const SeminarSessionRunner = () => {
     },
   });
 
-  const handleSubmitTurn = async (text: string) => {
+  const handleSubmitTurn = async (text: string, hasClaims?: boolean) => {
     if (!id || !text) return;
     setSubmitting(true);
     setError(null);
@@ -195,6 +211,7 @@ const SeminarSessionRunner = () => {
       const agentTurn = await submitTurnMutation.mutateAsync({
         sessionId: id,
         text,
+        hasClaims,
       });
       // SSE turn_added will append both user and agent turns.
       // Also do a local dedup-append as a fallback for clients without SSE.
@@ -281,6 +298,17 @@ const SeminarSessionRunner = () => {
   const isResiduePhase = phase === "residue_required";
   const isDone = phase === "done";
 
+  const navState = (location.state ?? {}) as {
+    initialClaims?: string | null;
+  };
+  const chatInitialValue =
+    "initialClaims" in navState && turns.length === 0
+      ? buildInitialTemplate(
+          session.working_question,
+          navState.initialClaims ?? null,
+        )
+      : undefined;
+
   return (
     <Flex w="full">
       <VStack h="full" pb={6} flexGrow={1}>
@@ -331,13 +359,15 @@ const SeminarSessionRunner = () => {
           />
         </Box>
         <ChatInput
-          onSend={(msg) =>
+          onSend={(msg, hasClaims) =>
             isResiduePhase
               ? void handleSubmitResidue(msg)
-              : void handleSubmitTurn(msg)
+              : void handleSubmitTurn(msg, hasClaims)
           }
+          initialValue={chatInitialValue}
           disabled={isDone || phaseLocked || submitting}
           placeholder={isResiduePhase ? "Write your residue…" : "Your message…"}
+          showClaimsToggle={!isResiduePhase}
         />
         <ChatActions
           onComplete={handleComplete}

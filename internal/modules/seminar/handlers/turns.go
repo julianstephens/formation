@@ -52,8 +52,9 @@ func (h *TurnHandler) SubmitTurn(c *gin.Context) {
 		return
 	}
 
+	hasClaims := req.HasClaims != nil && *req.HasClaims
 	result, err := h.svc.SubmitTurn(c.Request.Context(), c.Param("id"), ownerSub,
-		service.SubmitTurnParams{Text: req.Text},
+		service.SubmitTurnParams{Text: req.Text, HasClaims: hasClaims},
 	)
 	if err != nil {
 		handleTurnServiceError(c, err)

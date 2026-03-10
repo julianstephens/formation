@@ -58,6 +58,30 @@ func HasLocator(text string) bool {
 	return locatorPattern.MatchString(text)
 }
 
+// ── Claim detection ──────────────────────────────────────────────────────────
+
+// claimPattern matches common claim-making constructions:
+//
+//	"the author/text/book/chapter/passage" + reporting verb
+//	first-person claim starters ("I claim", "my argument", …)
+//	"according to"
+var claimPattern = regexp.MustCompile(
+	`(?i)` +
+		// subject + reporting verb
+		`(?:the\s+(?:author|text|book|chapter|passage))\s+(?:argues|states|claims|asserts|contends|suggests|writes|notes)` +
+		// first-person claim starters
+		`|\bI\s+(?:claim|argue|contend|assert)\b` +
+		`|\bmy\s+(?:claim|position|argument)\b` +
+		// "according to"
+		`|\baccording\s+to\b`,
+)
+
+// HasClaim reports whether text contains claim-like language that warrants
+// locator gating in paperback mode.
+func HasClaim(text string) bool {
+	return claimPattern.MatchString(text)
+}
+
 // IsUnanchored reports whether the user has explicitly marked the claim as
 // UNANCHORED (case-insensitive). Per the canonical prompt instructions, an
 // UNANCHORED claim is accepted but treated as weaker.
@@ -76,6 +100,12 @@ type Policy struct {
 	// RequireLocator forces locator gating regardless of Mode.
 	// Used in tests and any future override scenario.
 	RequireLocator bool
+
+	// HasClaims is set by the caller (e.g. from the HTTP request field
+	// has_claims=true) to explicitly assert that the message contains claims.
+	// When true, locator gating is enforced in paperback mode even if
+	// HasClaim() would not auto-detect claim language.
+	HasClaims bool
 }
 
 // ── Result ────────────────────────────────────────────────────────────────────
@@ -103,7 +133,7 @@ type Result struct {
 func Check(pol Policy, text string) (Result, error) {
 	var flags []string
 
-	if pol.Mode == "paperback" || pol.RequireLocator {
+	if pol.RequireLocator || (pol.Mode == "paperback" && (pol.HasClaims || HasClaim(text))) {
 		if !HasLocator(text) && !IsUnanchored(text) {
 			flags = append(flags, FlagMissingLocator)
 			return Result{Flags: flags}, &ErrMissingLocator{}

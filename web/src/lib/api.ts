@@ -131,8 +131,11 @@ export function createApiClient(getToken: () => Promise<string>) {
       }),
 
     // ── Turns ─────────────────────────────────────────────────────────────────
-    submitTurn: (sessionId: string, text: string) =>
-      post<Turn>(`/seminar-sessions/${sessionId}/turns`, { text }),
+    submitTurn: (sessionId: string, text: string, hasClaims?: boolean) =>
+      post<Turn>(`/seminar-sessions/${sessionId}/turns`, {
+        text,
+        ...(hasClaims === true ? { has_claims: true } : {}),
+      }),
 
     // ── Exports ───────────────────────────────────────────────────────────────
     exportSeminar: (seminarId: string, format: "json" | "md" = "json") =>

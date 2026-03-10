@@ -207,7 +207,10 @@ curl -N http://localhost:8080/v1/sessions/$SESSION_ID/events \
 
 | # | Scenario | Expected |
 |---|----------|----------|
-| 9.1 | Submit turn (paperback, no locator, no UNANCHORED) | 400, code `missing_locator` |
+| 9.1a | Submit plain conversational turn (no claim language, no locator) | 200 |
+| 9.1b | Submit turn with claim language, no locator, no UNANCHORED | 400, code `missing_locator` |
+| 9.1c | Submit turn with `has_claims=true`, no locator, no UNANCHORED | 400, code `missing_locator` |
+| 9.1d | Submit turn with `has_claims=true` + UNANCHORED (no locator) | 200 |
 | 9.2 | Submit turn (paperback, valid locator `p. 12`) | 200, agent response returned |
 | 9.3 | Submit turn (paperback, UNANCHORED marker) | 200 |
 | 9.4 | Submit turn (excerpt mode, no locator) | 200 (locator not required) |

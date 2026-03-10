@@ -1,4 +1,5 @@
 import { DeleteButton, ExportButton } from "@/components/Button";
+import { toaster } from "@/components/ui/toaster";
 import { useEditSeminarDialog } from "@/contexts/EditSeminarDialogContext";
 import { useNewSessionDialog } from "@/contexts/NewSessionDialogContext";
 import {
@@ -13,7 +14,6 @@ import {
   Box,
   Button,
   Card,
-  DataList,
   Heading,
   HStack,
   Spinner,
@@ -25,7 +25,7 @@ import { LuPencil } from "react-icons/lu";
 import { useNavigate, useParams } from "react-router-dom";
 
 export default function SeminarDetail() {
-  const { id } = useParams<{ id: string; }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const { data: seminar, isLoading, error: seminarError } = useSeminar(id);
@@ -47,13 +47,24 @@ export default function SeminarDetail() {
   }, [id, seminarIdRef]);
 
   const handleDelete = async () => {
-    if (!id || !window.confirm("Delete this seminar? This cannot be undone."))
+    if (!id || !window.confirm("Delete this seminar? This cannot be undone.")) {
+      toaster.error({
+        title: "Error",
+        description: "Failed to delete seminar.",
+        closable: true,
+      });
       return;
+    }
     try {
       await deleteSeminarMutation.mutateAsync(id);
       navigate("/seminars", { replace: true });
     } catch (e) {
       setMutationError(e instanceof Error ? e.message : String(e));
+      toaster.error({
+        title: "Error",
+        description: "Failed to delete seminar.",
+        closable: true,
+      });
     }
   };
 
@@ -66,12 +77,23 @@ export default function SeminarDetail() {
       !window.confirm(
         `Delete session "${sectionLabel}"? This cannot be undone.`,
       )
-    )
+    ) {
+      toaster.error({
+        title: "Error",
+        description: "Failed to delete session.",
+        closable: true,
+      });
       return;
+    }
     try {
       await deleteSessionMutation.mutateAsync({ sessionId, seminarId: id });
     } catch (e) {
       setMutationError(e instanceof Error ? e.message : String(e));
+      toaster.error({
+        title: "Error",
+        description: "Failed to delete session.",
+        closable: true,
+      });
     }
   };
 
@@ -118,14 +140,6 @@ export default function SeminarDetail() {
           gap={2}
         >
           <Box minW={0} flex={1}>
-            <DataList.Root>
-              <DataList.Item>
-                <DataList.ItemLabel>Thesis:</DataList.ItemLabel>
-                <DataList.ItemValue>
-                  {seminar.thesis_current}
-                </DataList.ItemValue>
-              </DataList.Item>
-            </DataList.Root>
             <Heading size="lg" wordBreak="break-word">
               {seminar.title}
             </Heading>

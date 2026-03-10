@@ -181,7 +181,8 @@ type TutorialSessionDetailResponse struct {
 
 // SubmitTurnRequest is the body for POST /v1/sessions/:id/turns.
 type SubmitTurnRequest struct {
-	Text string `json:"text" binding:"required"`
+	Text      string `json:"text"       binding:"required"`
+	HasClaims *bool  `json:"has_claims" binding:"-"        swaggertype:"boolean"`
 }
 
 // SubmitTutorialTurnRequest is the body for POST /v1/tutorial-sessions/:id/turns.

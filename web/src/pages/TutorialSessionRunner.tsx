@@ -43,7 +43,6 @@ import { useParams } from "react-router-dom";
 
 const TutorialSessionRunner = () => {
   const { id } = useParams<{ id: string }>();
-  console.log("[TutorialSessionRunner] Component rendered, id:", id);
   const unsubscribe = useTutorialSessionEventsUnsubscribe();
 
   // Query: initial session load
@@ -402,7 +401,7 @@ const TutorialSessionRunner = () => {
 
   return (
     <Flex w="full">
-      <VStack flexGrow={1} h="full">
+      <VStack flexGrow={1} h="full" pb={6}>
         {/* A. Header */}
         <TutorialSessionHeader
           detail={detail}

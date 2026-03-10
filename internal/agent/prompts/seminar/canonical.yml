@@ -118,6 +118,20 @@ phase_addenda:
 
     Goal: faithful articulation before judgment.
 
+    FIRST-TURN STRUCTURE
+    The participant's opening message may follow this structured form:
+    - Working question: the central question for the session
+    - Initial claims: one or more claims with text locators
+    - Terms needing definition: terms the participant flags as ambiguous
+    - Uncertainty: unknowns the participant acknowledges upfront
+
+    If this structure is present:
+    - Accept it as the opening reconstruction statement.
+    - Begin by pressing on the stated claims for locator grounding and precision.
+    - Demand definitions for each listed term before allowing the argument to proceed.
+    - Probe the stated uncertainty — require the participant to commit to a position.
+    - Do not ask the participant to reformat or resubmit their opening.
+
   opposition: |
     PHASE: OPPOSITION
 

@@ -1,5 +1,6 @@
 import { DeleteButton, ExportButton } from "@/components/Button";
 import { NewTutorialSessionDialog } from "@/components/dialogs/NewTutorialSessionDialog";
+import { toaster } from "@/components/ui/toaster";
 import {
   useCreateTutorialSession,
   useDeleteTutorial,
@@ -48,13 +49,27 @@ export default function TutorialDetail() {
   );
 
   const handleDelete = async () => {
-    if (!id || !window.confirm("Delete this tutorial? This cannot be undone."))
+    if (
+      !id ||
+      !window.confirm("Delete this tutorial? This cannot be undone.")
+    ) {
+      toaster.error({
+        title: "Error",
+        description: "Failed to delete tutorial.",
+        closable: true,
+      });
       return;
+    }
     try {
       await deleteTutorialMutation.mutateAsync(id);
       navigate("/tutorials", { replace: true });
     } catch (e) {
       setMutationError(e instanceof Error ? e.message : String(e));
+      toaster.error({
+        title: "Error",
+        description: "Failed to delete tutorial.",
+        closable: true,
+      });
     }
   };
 
@@ -64,7 +79,14 @@ export default function TutorialDetail() {
   };
 
   const handleStartSession = async () => {
-    if (!id) return;
+    if (!id) {
+      toaster.error({
+        title: "Error",
+        description: "Failed to start session.",
+        closable: true,
+      });
+      return;
+    }
     setStarting(true);
     setDialogOpen(false);
     try {
@@ -75,18 +97,34 @@ export default function TutorialDetail() {
       navigate(`/tutorial-sessions/${sess.id}`);
     } catch (e) {
       setMutationError(e instanceof Error ? e.message : String(e));
+      toaster.error({
+        title: "Error",
+        description: "Failed to start session.",
+        closable: true,
+      });
     } finally {
       setStarting(false);
     }
   };
 
   const handleDeleteSession = async (sessionId: string) => {
-    if (!id || !window.confirm("Delete this session? This cannot be undone."))
+    if (!id || !window.confirm("Delete this session? This cannot be undone.")) {
+      toaster.error({
+        title: "Error",
+        description: "Failed to delete session.",
+        closable: true,
+      });
       return;
+    }
     try {
       await deleteSessionMutation.mutateAsync({ sessionId, tutorialId: id });
     } catch (e) {
       setMutationError(e instanceof Error ? e.message : String(e));
+      toaster.error({
+        title: "Error",
+        description: "Failed to delete session.",
+        closable: true,
+      });
     }
   };
 

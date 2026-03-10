@@ -1,6 +1,8 @@
 package service
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -150,6 +152,44 @@ func isValidationError(err error, target **ValidationError) bool {
 		*target = v
 	}
 	return ok
+}
+
+// ── ErrSessionTerminalError ───────────────────────────────────────────────────
+
+// TestErrSessionTerminalError_errorMessage ensures the error is human-readable.
+func TestErrSessionTerminalError_errorMessage(t *testing.T) {
+	t.Parallel()
+	err := &ErrSessionTerminalError{Status: "complete"}
+	if err.Error() == "" {
+		t.Fatal("ErrSessionTerminalError.Error() must not be empty")
+	}
+}
+
+// TestErrSessionTerminalError_errorsAs verifies that errors.As unwraps correctly.
+func TestErrSessionTerminalError_errorsAs(t *testing.T) {
+	t.Parallel()
+	wrapped := fmt.Errorf("outer: %w", &ErrSessionTerminalError{Status: "abandoned"})
+	var terminal *ErrSessionTerminalError
+	if !errors.As(wrapped, &terminal) {
+		t.Fatal("errors.As should find ErrSessionTerminalError through wrapping")
+	}
+	if terminal.Status != "abandoned" {
+		t.Errorf("expected Status=abandoned, got %q", terminal.Status)
+	}
+}
+
+// ── ConflictError (type alias) ────────────────────────────────────────────────
+
+// TestConflictError_alias confirms ConflictError is re-exported and usable.
+func TestConflictError_alias(t *testing.T) {
+	t.Parallel()
+	err := &ConflictError{
+		Resource: "tutorial_session",
+		Message:  "an in-progress extended session already exists for this tutorial this week",
+	}
+	if err.Error() == "" {
+		t.Fatal("ConflictError.Error() must not be empty")
+	}
 }
 
 // ── parseProblemSetCommandOptions ────────────────────────────────────────────

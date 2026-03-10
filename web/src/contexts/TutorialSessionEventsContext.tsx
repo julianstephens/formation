@@ -59,10 +59,8 @@ const {
   dispatch,
 );
 
-
 export {
   TutorialSessionEventsProvider,
   useTutorialSessionEventsSubscription,
-  useTutorialSessionEventsUnsubscribe
+  useTutorialSessionEventsUnsubscribe,
 };
-

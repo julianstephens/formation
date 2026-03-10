@@ -1,5 +1,15 @@
 import type { Artifact, TutorialSessionKind } from "@/lib/types";
-import { Box, Button, Flex, Icon, Span, Textarea } from "@chakra-ui/react";
+import { hasClaim, hasLocator, isUnanchored } from "@/lib/utils";
+import {
+  Box,
+  Button,
+  Checkbox,
+  Flex,
+  Icon,
+  Span,
+  Text,
+  Textarea,
+} from "@chakra-ui/react";
 import { type KeyboardEvent, useMemo, useState } from "react";
 import { LuSend } from "react-icons/lu";
 import { COMMANDS } from "./commands";
@@ -9,27 +19,32 @@ import { ProblemSetCommandBuilder } from "./ProblemSetCommandBuilder";
 import { ReviewProblemSetCommandBuilder } from "./ReviewProblemSetCommandBuilder";
 
 interface ChatInputProps {
-  onSend: (message: string) => void;
+  onSend: (message: string, hasClaims?: boolean) => void;
   disabled?: boolean;
   placeholder?: string;
+  initialValue?: string;
   sessionKind?: TutorialSessionKind;
   artifacts?: Artifact[];
+  showClaimsToggle?: boolean;
 }
 
 export function ChatInput({
   onSend,
   disabled,
   placeholder = "Your message...",
+  initialValue,
   sessionKind,
   artifacts,
+  showClaimsToggle,
 }: ChatInputProps) {
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(initialValue ?? "");
   const [showCommandBuilder, setShowCommandBuilder] = useState(false);
   const [showReviewCommandBuilder, setShowReviewCommandBuilder] =
     useState(false);
   const [showDiagnoseCommandBuilder, setShowDiagnoseCommandBuilder] =
     useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+  const [hasClaims, setHasClaims] = useState(false);
 
   // Visible slash-command suggestions: active while the user is typing the
   // command name (starts with "/" and no space yet) and the builder isn't open.
@@ -60,8 +75,9 @@ export function ChatInput({
 
   const handleSubmit = () => {
     if (message.trim() && !disabled) {
-      onSend(message.trim());
+      onSend(message.trim(), hasClaims || undefined);
       setMessage("");
+      setHasClaims(false);
       setShowCommandBuilder(false);
       setShowReviewCommandBuilder(false);
       setShowDiagnoseCommandBuilder(false);
@@ -170,91 +186,127 @@ export function ChatInput({
     setShowDiagnoseCommandBuilder(false);
   };
 
+  // Soft claim hint: shown when showClaimsToggle is on, message has claim
+  // language, but no locator and not marked UNANCHORED (advisory only).
+  const showClaimHint =
+    showClaimsToggle === true &&
+    message.trim().length > 0 &&
+    hasClaim(message) &&
+    !hasLocator(message) &&
+    !isUnanchored(message);
+
   return (
-    <Box w="full" borderY="1px solid #333" bgColor="transparent" p={4}>
-      <Box maxW="4xl" mx="auto">
-        <Box position="relative">
-          {showCommandBuilder && (
-            <ProblemSetCommandBuilder
-              onSelect={handleCommandSelect}
-              onCancel={handleCommandCancel}
-            />
-          )}
-          {showReviewCommandBuilder && (
-            <ReviewProblemSetCommandBuilder
-              onSelect={handleCommandSelect}
-              onCancel={handleCommandCancel}
-            />
-          )}
-          {showDiagnoseCommandBuilder && (
-            <DiagnoseCommandBuilder
-              artifacts={artifacts ?? []}
-              onSelect={handleCommandSelect}
-              onCancel={handleCommandCancel}
-            />
-          )}
-          {showSuggestions && (
-            <CommandSuggestions
-              commands={filteredCommands}
-              selectedIndex={selectedCommandIndex}
-              onSelect={applySuggestion}
-              onHoverIndex={setSelectedCommandIndex}
-            />
-          )}
-          <Textarea
-            value={message}
-            onChange={(e) => handleMessageChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            disabled={disabled}
-            w="full"
-            bgColor="#1a1a1a"
-            border="none"
-            color="white"
-            rounded="lg"
-            pr={24}
-            resize="none"
-            _focus={{ outline: "none", ring: "2px", ringColor: "#F59E0B" }}
-            minH="80px"
-            maxH="200px"
-            _placeholder={{ color: "#666" }}
-            rows={2}
+    <Box
+      id="chatInputContainer"
+      w="full"
+      borderY="1px solid #333"
+      bgColor="transparent"
+      p={4}
+    >
+      <Box id="chatInputInner" maxW="4xl" mx="auto" position="relative">
+        {showCommandBuilder && (
+          <ProblemSetCommandBuilder
+            onSelect={handleCommandSelect}
+            onCancel={handleCommandCancel}
           />
-          <Flex
-            position="absolute"
-            bottom={4}
-            right={4}
-            alignItems="center"
-            gap={3}
-          >
-            <Span color="#666" fontSize="xs">
-              {showSuggestions
-                ? "Tab to complete · ↑↓ to navigate · Esc to dismiss"
-                : "⌘/Ctrl + Enter to submit"}
-            </Span>
-            <Button
-              onClick={handleSubmit}
-              disabled={!message.trim() || disabled}
-              bgColor="#F59E0B"
-              color="black"
-              px={5}
-              py={2}
-              rounded="md"
-              fontWeight="bold"
-              transition="background-color 0.2s"
-              display="flex"
-              alignItems="center"
-              gap={2}
-              _hover={{ bgColor: "#D97706" }}
-              _disabled={{ bgColor: "#666", cursor: "not-allowed" }}
+        )}
+        {showReviewCommandBuilder && (
+          <ReviewProblemSetCommandBuilder
+            onSelect={handleCommandSelect}
+            onCancel={handleCommandCancel}
+          />
+        )}
+        {showDiagnoseCommandBuilder && (
+          <DiagnoseCommandBuilder
+            artifacts={artifacts ?? []}
+            onSelect={handleCommandSelect}
+            onCancel={handleCommandCancel}
+          />
+        )}
+        {showSuggestions && (
+          <CommandSuggestions
+            commands={filteredCommands}
+            selectedIndex={selectedCommandIndex}
+            onSelect={applySuggestion}
+            onHoverIndex={setSelectedCommandIndex}
+          />
+        )}
+        <Textarea
+          value={message}
+          onChange={(e) => handleMessageChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={disabled}
+          w="full"
+          bgColor="#1a1a1a"
+          border="none"
+          color="white"
+          rounded="lg"
+          pr={24}
+          resize="none"
+          _focus={{ outline: "none", ring: "2px", ringColor: "#F59E0B" }}
+          minH="80px"
+          maxH="200px"
+          _placeholder={{ color: "#666" }}
+          rows={10}
+        />
+        {showClaimsToggle && (
+          <Flex mt={2} mb={1} alignItems="center" gap={3} flexWrap="wrap">
+            <Checkbox.Root
+              checked={hasClaims}
+              onCheckedChange={(e) => setHasClaims(!!e.checked)}
+              size="sm"
+              colorPalette="yellow"
             >
-              <Icon w={4} h={4}>
-                <LuSend />
-              </Icon>
-              Send
-            </Button>
+              <Checkbox.HiddenInput />
+              <Checkbox.Control />
+              <Checkbox.Label>
+                <Span color="#aaa" fontSize="xs">
+                  Contains claims
+                </Span>
+              </Checkbox.Label>
+            </Checkbox.Root>
+            {showClaimHint && (
+              <Text color="orange.400" fontSize="xs">
+                Claim detected — add a locator or mark UNANCHORED.
+              </Text>
+            )}
           </Flex>
-        </Box>
+        )}
+        <Flex
+          position="absolute"
+          bottom={10}
+          right={4}
+          alignItems="center"
+          gap={3}
+        >
+          <Span color="#666" fontSize="xs">
+            {showSuggestions
+              ? "Tab to complete · ↑↓ to navigate · Esc to dismiss"
+              : "⌘/Ctrl + Enter to submit"}
+          </Span>
+          <Button
+            onClick={handleSubmit}
+            disabled={!message.trim() || disabled}
+            bgColor="#F59E0B"
+            color="black"
+            px={5}
+            py={2}
+            rounded="md"
+            fontWeight="bold"
+            transition="background-color 0.2s"
+            display="flex"
+            alignItems="center"
+            gap={2}
+            _hover={{ bgColor: "#D97706" }}
+            _disabled={{ bgColor: "#666", cursor: "not-allowed" }}
+          >
+            <Icon w={4} h={4}>
+              <LuSend />
+            </Icon>
+            Send
+          </Button>
+        </Flex>
       </Box>
     </Box>
   );

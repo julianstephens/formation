@@ -129,8 +129,9 @@ func TestCheck_paperback_UNANCHORED_passes(t *testing.T) {
 func TestCheck_paperback_noLocator_returnsErrMissingLocator(t *testing.T) {
 	t.Parallel()
 
+	// Must use text with claim language so the new gate fires.
 	pol := referee.Policy{Mode: "paperback"}
-	res, err := referee.Check(pol, "The author says something interesting here.")
+	res, err := referee.Check(pol, "The author claims something interesting here.")
 	if err == nil {
 		t.Fatal("expected ErrMissingLocator, got nil")
 	}
@@ -200,5 +201,102 @@ func TestErrMissingLocator_errorString(t *testing.T) {
 	msg := e.Error()
 	if msg == "" {
 		t.Error("ErrMissingLocator.Error() returned empty string")
+	}
+}
+
+// ── HasClaim ──────────────────────────────────────────────────────────────────
+
+func TestHasClaim_positive(t *testing.T) {
+	t.Parallel()
+
+	positive := []struct {
+		name string
+		text string
+	}{
+		{"the author argues", "The author argues that freedom is essential."},
+		{"the text states", "The text states the opposite."},
+		{"the book claims", "The book claims this view is correct."},
+		{"the chapter asserts", "The chapter asserts a strong position."},
+		{"the passage contends", "The passage contends the argument is flawed."},
+		{"the author suggests", "The author suggests a different reading."},
+		{"the author writes", "The author writes about the tension here."},
+		{"the author notes", "The author notes an important distinction."},
+		{"I claim", "I claim that the argument succeeds."},
+		{"I argue", "I argue the opposite is true."},
+		{"I contend", "I contend this passage is pivotal."},
+		{"I assert", "I assert the evidence is insufficient."},
+		{"my claim", "My claim is that the text contradicts itself."},
+		{"my position", "My position is that the author is wrong."},
+		{"my argument", "My argument rests on the following premise."},
+		{"according to", "According to the text, freedom matters."},
+		{"case-insensitive", "THE AUTHOR ARGUES freedom is paramount."},
+	}
+
+	for _, tc := range positive {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if !referee.HasClaim(tc.text) {
+				t.Errorf("HasClaim(%q) = false, want true", tc.text)
+			}
+		})
+	}
+}
+
+func TestHasClaim_negative(t *testing.T) {
+	t.Parallel()
+
+	negative := []struct {
+		name string
+		text string
+	}{
+		{"plain question", "What does freedom mean in this context?"},
+		{"empty string", ""},
+		{"conversational", "I think this is an interesting point."},
+		{"chapter without verb", "In the chapter the discussion begins."},
+		{"unrelated number", "There are 12 reasons this matters."},
+		{"locator only", "See p. 42 for the supporting evidence."},
+	}
+
+	for _, tc := range negative {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if referee.HasClaim(tc.text) {
+				t.Errorf("HasClaim(%q) = true, want false", tc.text)
+			}
+		})
+	}
+}
+
+// ── Check – claim-language gating ────────────────────────────────────────────
+
+func TestCheck_paperback_noClaimLanguage_passes(t *testing.T) {
+	t.Parallel()
+
+	pol := referee.Policy{Mode: "paperback"}
+	// Plain conversational message — no claim language, no locator needed.
+	res, err := referee.Check(pol, "What do you think about the ending?")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(res.Flags) != 0 {
+		t.Errorf("expected no flags, got %v", res.Flags)
+	}
+}
+
+func TestCheck_paperback_hasClaims_override_gates(t *testing.T) {
+	t.Parallel()
+
+	// HasClaims=true forces gating even without auto-detected claim language.
+	pol := referee.Policy{Mode: "paperback", HasClaims: true}
+	_, err := referee.Check(pol, "Just a plain message with no locator.")
+	if err == nil {
+		t.Fatal("expected ErrMissingLocator when HasClaims=true and no locator")
+	}
+
+	var el *referee.ErrMissingLocator
+	if !errors.As(err, &el) {
+		t.Errorf("error type = %T, want *ErrMissingLocator", err)
 	}
 }

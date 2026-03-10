@@ -1,3 +1,7 @@
+## v0.2.0
+
+- Add new workflow for seminar session opening, with pre-population of initial turn and explicit Working Question support
+
 ## v0.1.3
 
 - Redesign seminar session page to match tutorial session  page, with new header, standard chat design, and action components

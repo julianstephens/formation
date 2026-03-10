@@ -133,7 +133,9 @@ const BaseLayout = ({ children }: React.PropsWithChildren) => {
     try {
       const s = await createSessionMutation.mutateAsync({ seminarId, input });
       closeSessionDialog();
-      navigate(`/seminar-sessions/${s.id}`);
+      navigate(`/seminar-sessions/${s.id}`, {
+        state: { initialClaims: claims || null },
+      });
     } finally {
       setCreatingSession(false);
     }

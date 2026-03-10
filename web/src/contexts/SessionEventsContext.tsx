@@ -56,10 +56,8 @@ const {
   dispatch,
 );
 
-
 export {
   SessionEventsProvider,
   useSessionEventsSubscription,
-  useSessionEventsUnsubscribe
+  useSessionEventsUnsubscribe,
 };
-

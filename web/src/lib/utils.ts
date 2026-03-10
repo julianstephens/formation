@@ -6,7 +6,11 @@ export const hasLocator = (text: string): boolean => locatorPattern.test(text);
 
 export const isUnanchored = (text: string): boolean =>
   text.toUpperCase().includes("UNANCHORED");
+// claimPattern mirrors the regex in internal/referee/referee.go.
+const claimPattern =
+  /(?:the\s+(?:author|text|book|chapter|passage))\s+(?:argues|states|claims|asserts|contends|suggests|writes|notes)|\bI\s+(?:claim|argue|contend|assert)\b|\bmy\s+(?:claim|position|argument)\b|\baccording\s+to\b/i;
 
+export const hasClaim = (text: string): boolean => claimPattern.test(text);
 export const prepareText = (text: string) => {
   // Convert literal \n to actual newlines, then clean up excessive whitespace
   return text

@@ -324,8 +324,15 @@ export function useSubmitResidue() {
 export function useSubmitTurn() {
   const api = useApi();
   return useMutation({
-    mutationFn: ({ sessionId, text }: { sessionId: string; text: string }) =>
-      api.submitTurn(sessionId, text),
+    mutationFn: ({
+      sessionId,
+      text,
+      hasClaims,
+    }: {
+      sessionId: string;
+      text: string;
+      hasClaims?: boolean;
+    }) => api.submitTurn(sessionId, text, hasClaims),
   });
 }
 

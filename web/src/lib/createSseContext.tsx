@@ -70,7 +70,7 @@ export function createSseContext<H extends WithConnectionErrorHandler>(
 
   // ── Provider ──────────────────────────────────────────────────────────────
 
-  function Provider({ children }: { children: ReactNode; }) {
+  function Provider({ children }: { children: ReactNode }) {
     const getToken = useAccessToken();
     const subsRef = useRef<Map<string, Subscription<H>>>(new Map());
 

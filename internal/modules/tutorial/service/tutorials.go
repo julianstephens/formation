@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/julianstephens/formation/internal/agent"
 	"github.com/julianstephens/formation/internal/domain"
 	"github.com/julianstephens/formation/internal/modules/tutorial/repo"
@@ -196,6 +198,25 @@ func (s *TutorialSessionService) CreateTutorialSession(
 	if kind != "" && !domain.ValidTutorialSessionKind(kind) {
 		logger.Debug("invalid session kind", slog.String("kind", string(kind)))
 		return nil, &ValidationError{Field: "kind", Message: "must be 'diagnostic' or 'extended'"}
+	}
+
+	// Enforce at most one in-progress extended session per tutorial per week (Req #8).
+	if kind == domain.TutorialSessionKindExtended {
+		exists, err := s.sessions.HasActiveExtendedSessionForWeek(ctx, tutorialID, ownerSub, time.Now())
+		if err != nil {
+			logger.Error("failed to check existing extended session for week", slog.String("error", err.Error()))
+			return nil, fmt.Errorf("create tutorial session: %w", err)
+		}
+		if exists {
+			logger.Debug("active extended session already exists for this week",
+				slog.String("tutorial_id", tutorialID),
+				slog.String("owner", ownerSub),
+			)
+			return nil, &ConflictError{
+				Resource: "tutorial_session",
+				Message:  "an in-progress extended session already exists for this tutorial this week",
+			}
+		}
 	}
 
 	sess := domain.TutorialSession{
@@ -432,10 +453,18 @@ func (s *ArtifactService) CreateArtifact(
 		return nil, &ValidationError{Field: "content", Message: "must not be blank"}
 	}
 
-	// Verify session ownership.
-	if _, err := s.repo.GetSessionByID(ctx, sessionID, ownerSub); err != nil {
+	// Verify session ownership and that the session is still active.
+	sess, err := s.repo.GetSessionByID(ctx, sessionID, ownerSub)
+	if err != nil {
 		logger.Debug("session not found", slog.String("session_id", sessionID), slog.String("error", err.Error()))
 		return nil, wrapNotFound(err, "tutorial_session", sessionID)
+	}
+	if sess.IsTerminal() {
+		logger.Debug("session is terminal, cannot create artifact",
+			slog.String("session_id", sessionID),
+			slog.String("status", string(sess.Status)),
+		)
+		return nil, &ErrSessionTerminalError{Status: string(sess.Status)}
 	}
 
 	art := domain.Artifact{
@@ -1072,10 +1101,20 @@ func (s *TutorialTurnService) SubmitTutorialTurn(
 						}
 						_, err = s.repo.CreateProblemSet(ctx, ownerSub, newProblemSet)
 						if err != nil {
-							logger.Error("failed to create problem set",
-								"session_id", sessionID,
-								"error", err.Error(),
-							)
+							// A concurrent request may have already inserted the problem set;
+							// the DB unique index will reject the duplicate with a 23505 error.
+							// Treat that as a benign race rather than a real failure.
+							var pgErr *pgconn.PgError
+							if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+								logger.Info("problem set already exists (concurrent creation), skipping",
+									"session_id", sessionID,
+								)
+							} else {
+								logger.Error("failed to create problem set",
+									"session_id", sessionID,
+									"error", err.Error(),
+								)
+							}
 						} else {
 							logger.Info("successfully created problem set from agent response",
 								"session_id", sessionID,

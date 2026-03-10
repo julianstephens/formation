@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -197,6 +198,31 @@ func (r *TutorialRepo) ListSessionsByTutorialID(
 		result = []domain.TutorialSession{}
 	}
 	return result, nil
+}
+
+// HasActiveExtendedSessionForWeek returns true if the owner already has an
+// in-progress extended session for the given tutorial in the same calendar week
+// as weekRef (Sunday-anchored, matching date_trunc('week', ...)).
+func (r *TutorialRepo) HasActiveExtendedSessionForWeek(
+	ctx context.Context,
+	tutorialID, ownerSub string,
+	weekRef time.Time,
+) (bool, error) {
+	const q = `
+		SELECT EXISTS (
+			SELECT 1
+			FROM tutorial_sessions
+			WHERE tutorial_id  = $1
+			  AND owner_sub    = $2
+			  AND kind         = 'extended'
+			  AND status       = 'in_progress'
+			  AND date_trunc('week', started_at) = date_trunc('week', $3::timestamptz)
+		)`
+	var exists bool
+	if err := r.Pool.QueryRow(ctx, q, tutorialID, ownerSub, weekRef).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check active extended session for week: %w", err)
+	}
+	return exists, nil
 }
 
 // CompleteSession marks a session as complete and records ended_at.

@@ -50,7 +50,8 @@ func NewTurnService(
 
 // SubmitTurnParams holds the caller-supplied inputs for a user turn.
 type SubmitTurnParams struct {
-	Text string
+	Text      string
+	HasClaims bool
 }
 
 // SubmitTurnResult carries the turns persisted by a successful submission.
@@ -91,7 +92,7 @@ func (s *TurnService) SubmitTurn(
 	}
 
 	// 2. Referee: locator gating.
-	refResult, refErr := referee.Check(referee.Policy{Mode: sess.Mode}, p.Text)
+	refResult, refErr := referee.Check(referee.Policy{Mode: sess.Mode, HasClaims: p.HasClaims}, p.Text)
 	if refErr != nil {
 		return nil, refErr
 	}

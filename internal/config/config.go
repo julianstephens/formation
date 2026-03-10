@@ -161,7 +161,6 @@ func LoadFromInfisical() (*Config, error) {
 	}
 
 	fmt.Println("Configuration loaded successfully from Infisical")
-	fmt.Printf("%+v\n", cfg)
 
 	return cfg, nil
 }

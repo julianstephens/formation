@@ -320,10 +320,17 @@ func (h *Hub) Publish(sessionID string, event Event) {
 		return
 	}
 
-	if err := h.redis.Publish(context.Background(), h.channelName(sessionID), b).Err(); err != nil {
+	n, err := h.redis.Publish(context.Background(), h.channelName(sessionID), b).Result()
+	if err != nil {
 		h.log.Error("sse: redis publish failed – falling back to local delivery",
 			"session", sessionID, "event", event.Type, "error", err,
 		)
+		h.deliverLocal(sessionID, event)
+	} else if n == 0 {
+		// No Redis subscribers received the event. This happens when the
+		// per-session subscription goroutine hasn't started yet (startup race)
+		// or when there are no local subscribers. Deliver directly so the event
+		// is not silently dropped.
 		h.deliverLocal(sessionID, event)
 	}
 }
